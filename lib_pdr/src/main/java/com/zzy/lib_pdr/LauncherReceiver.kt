@@ -11,6 +11,7 @@ import com.zzy.common.util.postUIThread
 class LauncherReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        PageContainer.putPageClazz(PageConstant.Positing.NAME, PageConstant.Positing.PDR_PAGE, PDRActivity::class.java)
+        PageContainer.putPageClazz(PageConstant.Positing.NAME,
+                PageConstant.Positing.PDR_PAGE, PDRActivity::class.java)
     }
 }

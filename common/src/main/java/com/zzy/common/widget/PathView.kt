@@ -6,9 +6,11 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
 import com.zzy.common.util.DisplayAttrUtil
 import com.zzy.common.util.toastShort
+import kotlin.math.*
 
 /**
  * 绘制步行轨迹的View
@@ -20,10 +22,11 @@ class PathView : View {
 
     private var isFirstDraw = true
 
-    private var path = Path()
+    private var linePath = Path()
     private var pointPath = Path()
-    private val pathPaint = Paint()
+    private val linePaint = Paint()
     private val pointPaint = Paint()
+    private val textPaint = Paint()
     private val coordinateAxisPaint = Paint()
 
     private var scale = 1.0f
@@ -31,6 +34,8 @@ class PathView : View {
 
     //常量
     companion object {
+        private const val TAG = "PathView"
+
         private const val DEFAULT_SCALE = 1.0f
         private val DESC_MARGIN = DisplayAttrUtil.getDensity() * 7f
         private val DESC_SIZE = DisplayAttrUtil.getDensity() * 7f
@@ -44,10 +49,30 @@ class PathView : View {
     }
 
     /**
-     * @param angle 角度 最大360度
+     * @param angle 角度 0 -> 3.14 -> -3.14 -> 0
      */
-    fun addStep(angle: Int) {
+    fun addStep(angle: Float) {
+        val offsetX = cos(angle.toDouble()).toFloat() * options.stepLength
+        val offsetY = sin(angle.toDouble()).toFloat() * options.stepLength
+        val xy = xyPoints.last()
+        val x = xy.first + offsetX
+        val y = xy.second + offsetY
+        Log.d(TAG, "angle=$angle, ox=$offsetX, oy=$offsetY")
+        pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
+        linePath.lineTo(x, y)
+        xyPoints.add(Pair(x, y))
 
+        //暂时按照0.5 0.5 的标准来
+        val middleWidth = measuredWidth.toFloat() * options.lineInitX
+        val middleHeight = measuredHeight.toFloat() * options.lineInitY
+        val edgeDistanceX = (x - middleWidth).absoluteValue * scale
+        val edgeDistanceY = (y - middleHeight).absoluteValue * scale
+        if (scale > 0.3f && (edgeDistanceX >= middleWidth || edgeDistanceY >= middleHeight)) {
+            Log.d(TAG, "x=$x, y=$y, ex=$edgeDistanceX, ey=$edgeDistanceY")
+            changeScale(((scale - 0.1f) * 10).roundToInt() / 10f)
+        } else {
+            invalidate()
+        }
     }
 
     fun notifyOption(options: Options) {
@@ -55,23 +80,27 @@ class PathView : View {
         coordinateAxisPaint.isAntiAlias = true
         coordinateAxisPaint.color = options.coordinateAxisColor
         coordinateAxisPaint.strokeWidth = options.coordinateAxisWidth
-        pathPaint.isAntiAlias = true
-        pathPaint.color = options.pathColor
-        pathPaint.strokeWidth = options.pathWidth
-        pathPaint.textSize = DESC_SIZE
+        linePaint.isAntiAlias = true
+        linePaint.color = options.lineColor
+        linePaint.strokeWidth = options.lineWidth
+        linePaint.style = Paint.Style.STROKE
         pointPaint.isAntiAlias = true
         pointPaint.color = options.pointColor
         pointPaint.style = Paint.Style.FILL_AND_STROKE
+        textPaint.textSize = DESC_SIZE
+        textPaint.color = options.lineColor
+        textPaint.isAntiAlias = true
 
         invalidate()
     }
 
     fun clear() {
-        path.reset()
+        linePath.reset()
         xyPoints.clear()
         pointPath.reset()
         scale = DEFAULT_SCALE
         isFirstDraw = true
+        notifyOption(options)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -80,25 +109,21 @@ class PathView : View {
 
         if (scale != DEFAULT_SCALE) {
             canvas.save()
-            canvas.scale(scale, scale, options.pathInitX * measuredWidth, options.pathInitY * measuredHeight)
+            canvas.scale(scale, scale, options.lineInitX * measuredWidth, options.lineInitY * measuredHeight)
         }
 
-        canvas.drawPath(path, pathPaint)
+        canvas.drawPath(linePath, linePaint)
         canvas.drawPath(pointPath, pointPaint)
-
-        if (scale != DEFAULT_SCALE) {
-            canvas.restore()
-        }
     }
 
     private fun checkFirst() {
         if (isFirstDraw) {
             isFirstDraw = false
-            val x = measuredWidth * options.pathInitX
-            val y = measuredHeight * options.pathInitY
+            val x = measuredWidth * options.lineInitX
+            val y = measuredHeight * options.lineInitY
             xyPoints.add(Pair(x, y))
-            path.moveTo(x, y, )
-            pointPath.addCircle(measuredWidth * options.pathInitX, measuredHeight * options.pathInitY, options.pointRadius, Path.Direction.CW)
+            linePath.moveTo(x, y)
+            pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
         }
     }
 
@@ -106,8 +131,8 @@ class PathView : View {
         canvas.drawColor(options.backgroundColor)
         canvas.drawLine(measuredWidth / 2f, measuredHeight.toFloat(), measuredWidth / 2f, 0f, coordinateAxisPaint)
         canvas.drawLine(0f, measuredHeight / 2f, measuredWidth.toFloat(), measuredHeight / 2f, coordinateAxisPaint)
-        canvas.drawText(options.stepLength, DESC_MARGIN, measuredHeight - DESC_MARGIN * 2, pathPaint)
-        canvas.drawLine(20f, measuredHeight - DESC_MARGIN, DESC_MARGIN + options.onceLength * scale, measuredHeight - DESC_MARGIN, pathPaint)
+        canvas.drawText(options.stepString, DESC_MARGIN, measuredHeight - DESC_MARGIN * 2, textPaint)
+        canvas.drawLine(20f, measuredHeight - DESC_MARGIN, DESC_MARGIN + options.onceLength * scale, measuredHeight - DESC_MARGIN, linePaint)
     }
 
     private fun changeScale(scale: Float) {
@@ -119,13 +144,14 @@ class PathView : View {
     class Options {
 
         //步长
-        var stepLength = "30cm"
+        var stepLength = DisplayAttrUtil.getDensity() * 18f
+        var stepString = "65cm"
 
         //路径参数
-        var pathColor = Color.BLUE
-        var pathWidth = DisplayAttrUtil.getDensity() * 2f
-        var pathInitX = 0.5f
-        var pathInitY = 0.5f
+        var lineColor = Color.BLUE
+        var lineWidth = DisplayAttrUtil.getDensity() * 2f
+        var lineInitX = 0.5f
+        var lineInitY = 0.5f
         var pointRadius = DisplayAttrUtil.getDensity() * 3f
         var pointColor = Color.RED
 

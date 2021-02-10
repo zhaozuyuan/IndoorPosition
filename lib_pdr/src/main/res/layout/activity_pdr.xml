@@ -10,10 +10,10 @@
 
     <EditText
         android:id="@+id/etLength"
-        android:layout_width="140dp"
+        android:layout_width="120dp"
         android:layout_height="54dp"
         android:gravity="center|start"
-        android:layout_marginStart="24dp"
+        android:layout_marginStart="16dp"
         android:textSize="15sp"
         android:inputType="number"
         android:layout_marginBottom="18dp"
@@ -21,6 +21,7 @@
         android:hint="步长（默认30）"/>
 
     <TextView
+        android:id="@+id/unit"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:textColor="#000000"
@@ -33,13 +34,25 @@
 
     <Button
         android:id="@+id/btnStart"
-        android:layout_width="140dp"
+        android:layout_width="92dp"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="32dp"
+        android:layout_marginStart="16dp"
+        android:textSize="13sp"
         android:layout_alignBottom="@id/etLength"
         android:layout_alignTop="@id/etLength"
-        android:layout_alignParentEnd="true"
+        android:layout_toEndOf="@id/unit"
         android:text="开始定位"/>
+
+    <Button
+        android:id="@+id/btnStop"
+        android:layout_width="92dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:textSize="13sp"
+        android:layout_alignBottom="@id/etLength"
+        android:layout_alignTop="@id/etLength"
+        android:layout_toEndOf="@id/btnStart"
+        android:text="停止"/>
 
     <com.zzy.common.widget.PathView
         android:id="@+id/pathView"
