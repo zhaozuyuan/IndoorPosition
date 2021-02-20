@@ -29,6 +29,14 @@ val cpuExecutor :ExecutorService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     }
 }
 
+fun runUIThread(task: () -> Unit) {
+    if (Looper.myLooper() == mainHandler.looper) {
+        task.invoke()
+    } else {
+        mainHandler.post(task)
+    }
+}
+
 fun postUIThread(task: () -> Unit) {
     mainHandler.post(task)
 }

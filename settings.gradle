@@ -1,3 +1,4 @@
+include ':lib_setting'
 include ':common'
 include ':lib_combine'
 include ':lib_rssi'

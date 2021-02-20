@@ -4,9 +4,11 @@ object PageConstant {
 
     object Setting {
 
-        const val MODULE = "setting"
+        const val NAME = "setting"
 
         const val SETTING_HOME_PAGE = "setting_home"
+
+        const val WIFI_APPOINT_PAGE = "setting_wifi_appoint"
     }
 
     object Positing {

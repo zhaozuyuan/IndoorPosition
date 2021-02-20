@@ -14,5 +14,11 @@ class MainActivity : AppCompatActivity() {
         toPDR.setOnClickListener {
             Router.startSimple(this, PageConstant.Positing.NAME, PageConstant.Positing.PDR_PAGE)
         }
+        toRSSI.setOnClickListener {
+            Router.startSimple(this, PageConstant.Wifi.NAME, PageConstant.Wifi.WIFI_RSSI_PAGE)
+        }
+        btnSetting.setOnClickListener {
+            Router.startSimple(this, PageConstant.Setting.NAME, PageConstant.Setting.SETTING_HOME_PAGE)
+        }
     }
 }

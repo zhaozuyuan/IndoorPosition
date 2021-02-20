@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.zzy.lib_rssi">
+    package="com.example.lib_setting">
 
     <application>
-        <activity android:name=".RSSICollectActivity"></activity>
+        <activity android:name=".WiFiAppointActivity"></activity>
+        <activity android:name=".SettingActivity" />
 
         <receiver
             android:name=".LauncherReceiver"

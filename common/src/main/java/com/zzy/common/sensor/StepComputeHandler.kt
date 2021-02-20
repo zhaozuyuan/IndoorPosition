@@ -128,7 +128,7 @@ class StepComputeHandler(private val manager: SensorManager)
                     && duration > MIN_STEP_TIME
                     //波峰必须大于
                     && preOptimalGravity > MIN_CREST
-                    //加速次数大于2
+                    //加速次数大于
                     && trendUpCount > MIN_TREND_UP_COUNT
                     //波峰必须大于波谷
                     && diff > MIN_CREST_TROUGH_DIFF) {
