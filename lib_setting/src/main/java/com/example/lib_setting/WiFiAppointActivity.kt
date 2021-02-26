@@ -44,12 +44,12 @@ class WiFiAppointActivity : AppCompatActivity() {
         rvWifiScan.layoutManager = LinearLayoutManager(this)
 
         wifiHandler.startListen()
-        wifiHandler.scanOnce { list ->
+        wifiHandler.scanOnce ({ list ->
             wifiScanAdapter.data = list[0]
                 .filter { !it.SSID.isNullOrEmpty() }
                 .map { WifiTag(it.SSID, it.BSSID) }
                 .toMutableList()
-        }
+        })
 
         cpuSync {
             val bean = SPUtil.readJsonObj(WiFiAppointBean.SP_KEY, WiFiAppointBean::class.java)

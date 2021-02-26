@@ -32,8 +32,12 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
 
     @Volatile
     private var curTag = 0L
+    //结果callback
     @Volatile
     private var curCallback: ((List<List<ScanResult>>) -> Unit)? = null
+    //进度callback
+    @Volatile
+    private var curProgressCallback: ((List<List<ScanResult>>) -> Unit)? = null
 
     private val wifiManager: WifiManager by lazy {
         activity.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -55,27 +59,39 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
             } else {
                 scanSuccess()
             }
+            //防止线程堵死
+            synchronized(lock) {
+                lock.notifyAll()
+            }
         }
     }
 
     fun isRunning() = isRegistered.get()
 
-    fun scanOnce(callback: (List<List<ScanResult>>) -> Unit) {
+    fun scanOnce(callback: (List<List<ScanResult>>) -> Unit,
+                 progress: (List<List<ScanResult>>) -> Unit = { }) {
         if (!isRegistered.get()) return
 
         curTag = System.currentTimeMillis()
         curCallback = callback
+        curProgressCallback = progress
         val myTag: Long = curTag
         ioSync {
+            var preCount = 0
             while (myTag == curTag) {
                 if (curScanSuccessCount == maxScanTimes) {
                     val copyList = curScanResultsList
                     postUIThread {
-                        callback.invoke(copyList)
+                        curCallback!!.invoke(copyList)
                     }
                     curScanSuccessCount = 0
                     curScanResultsList = mutableListOf()
                     break
+                } else if (preCount != curScanSuccessCount) {
+                    preCount = curScanSuccessCount
+                    postUIThread {
+                        curProgressCallback!!.invoke(curScanResultsList)
+                    }
                 }
 
                 //8.0以上过时,2min4次的限制.
@@ -108,8 +124,8 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
                 val intentFilter = IntentFilter()
                 intentFilter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
                 activity.registerReceiver(receiver, intentFilter)
-                curCallback?.also {
-                    scanOnce(it)
+                if (curCallback != null && curTag == 0L) {
+                    scanOnce(curCallback!!, curProgressCallback!!)
                 }
             }
 
@@ -131,10 +147,7 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
         if (!results.isNullOrEmpty()) {
             curScanResultsList.add(results)
             curScanSuccessCount++
-            synchronized(lock) {
-                lock.notifyAll()
-            }
-            Log.d(TAG, results.joinToString { "${it.SSID}-${it.BSSID}-${it.level}" })
+            Log.d(TAG, results.joinToString { "${it.SSID} ${it.BSSID} ${it.level}" })
         } else {
             Log.e(TAG, "scan result is null or empty.")
         }

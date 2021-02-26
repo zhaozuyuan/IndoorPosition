@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.net.wifi.ScanResult
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -12,12 +13,11 @@ import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.zzy.common.bean.WiFiAppointBean
+import com.zzy.common.bean.WifiBean
 import com.zzy.common.bean.WifiTag
+import com.zzy.common.net.HttpUtil
 import com.zzy.common.sensor.WifiHandler
-import com.zzy.common.util.DisplayAttrUtil
-import com.zzy.common.util.PermissionHelper
-import com.zzy.common.util.SPUtil
-import com.zzy.common.util.toastShort
+import com.zzy.common.util.*
 import kotlinx.android.synthetic.main.activity_rssi_collect.*
 
 class RSSICollectActivity : AppCompatActivity() {
@@ -42,7 +42,7 @@ class RSSICollectActivity : AppCompatActivity() {
                 selected(btnPushCur)
 
                 makeSureHandlerIsRunning()
-                handler.scanOnce { data ->
+                handler.scanOnce({ data ->
                     unselected(it, "收集一次RSSI")
                     unselected(btnLookCur)
                     unselected(btnPushCur)
@@ -52,12 +52,27 @@ class RSSICollectActivity : AppCompatActivity() {
                     } else {
                         adapter.data = emptyList()
                     }
-                }
+                }, { data ->
+                    //进度展示
+                    if (data.size != adapter.data?.size) {
+                        if (checkCanContinue(data)) {
+                            adapter.data = getTargetResult(data)
+                        } else {
+                            adapter.data = emptyList()
+                        }
+                    }
+                })
             }
         }
 
         rvCur.layoutManager = LinearLayoutManager(this)
         rvCur.adapter = adapter
+
+        btnPushCur.setOnClickListener {
+            ioSync {
+                HttpUtil.testRequest()
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -128,22 +143,37 @@ class RSSICollectActivity : AppCompatActivity() {
         return true
     }
 
-    private fun getTargetResult(data: List<List<ScanResult>>): List<List<ScanResult>>{
-        val targetResult: MutableList<List<ScanResult>> = mutableListOf()
+    private fun getTargetResult(data: List<List<ScanResult>>): List<List<WifiBean>>{
+        val targetResult: MutableList<List<WifiBean>> = mutableListOf()
         data.forEach { list ->
-            targetResult.add(list.filter { result ->
+            val onceList = list.filter { result ->
                 targetWifiList.contains(WifiTag(result.SSID, result.BSSID))
             }.sortedBy { result ->
                 //根据名字简单排个序
                 result.SSID
-            })
+            }.map { WifiBean.toWifiBean(it)
+            }.toMutableList()
+            //有的wifi没扫描到
+            if (onceList.size != targetWifiList.size) {
+                val copyTargetWifiList = targetWifiList.toMutableList()
+                onceList.forEach {
+                    val tag = WifiTag(it.ssid, it.bassid)
+                    if (copyTargetWifiList.contains(tag)) {
+                        copyTargetWifiList.remove(tag)
+                    }
+                }
+                copyTargetWifiList.forEach {
+                    onceList.add(WifiBean(it.ssid, it.bssid, -999))
+                }
+            }
+            targetResult.add(onceList)
         }
         return targetResult
     }
 
     class Adapter : RecyclerView.Adapter<Holder>() {
 
-        var data: List<List<ScanResult>>? = null
+        var data: List<List<WifiBean>>? = null
             set(value) {
                 field = value
                 notifyDataSetChanged()
@@ -168,10 +198,11 @@ class RSSICollectActivity : AppCompatActivity() {
                 var str = ""
                 val maxIndex = list.size - 1
                 list.forEachIndexed { index, result ->
-                    val ssid = if (result.SSID.length > 24) {
-                        result.SSID.substring(0, 24) + "..."
-                    } else result.SSID
-                    str = "$str$ssid   level=${result.level} ${if (maxIndex != index) "\n" else ""}"
+                    val ssid = if (result.ssid.length > 24) {
+                        result.ssid.substring(0, 24) + "..."
+                    } else result.ssid
+                    val line = if (maxIndex != index) "\n" else ""
+                    str = "${str}level=${result.level}\t\t\t$ssid$line"
                 }
                 return@let str
             }

@@ -12,7 +12,7 @@ val singleExecutor: ExecutorService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
 
 val ioExecutor: ExecutorService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     val maxCount = Runtime.getRuntime().availableProcessors() * 2 + 1
-    ThreadPoolExecutor(1, maxCount, 1000L, TimeUnit.MILLISECONDS, LinkedBlockingQueue()) { task ->
+    ThreadPoolExecutor(2, maxCount, 1000L, TimeUnit.MILLISECONDS, LinkedBlockingQueue()) { task ->
         Thread(task).apply {
             priority = Thread.NORM_PRIORITY
             isDaemon = true

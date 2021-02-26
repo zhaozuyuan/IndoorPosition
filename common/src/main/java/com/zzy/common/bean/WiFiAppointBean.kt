@@ -2,7 +2,6 @@ package com.zzy.common.bean
 
 /**
  * create by zuyuan on 2021/2/21
- * 默认list长度应该是3
  * Pair<ssid, bssid>
  */
 data class WiFiAppointBean(val wifi_list: List<WifiTag>) {
