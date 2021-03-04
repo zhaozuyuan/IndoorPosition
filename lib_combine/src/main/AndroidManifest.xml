@@ -3,12 +3,16 @@
     package="com.zzy.lib_combine">
 
     <application>
-        <receiver android:name=".LauncherReceiver"
-            android:exported="false"
-            android:enabled="true">
+        <activity android:name=".CombineActivity"></activity>
+
+        <receiver
+            android:name=".LauncherReceiver"
+            android:enabled="true"
+            android:exported="false">
             <intent-filter>
-                <action android:name="com.zzy.receiver.LAUNCHER"/>
+                <action android:name="com.zzy.receiver.LAUNCHER" />
             </intent-filter>
         </receiver>
     </application>
+
 </manifest>

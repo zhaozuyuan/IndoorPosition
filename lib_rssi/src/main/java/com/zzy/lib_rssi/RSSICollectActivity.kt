@@ -1,5 +1,6 @@
 package com.zzy.lib_rssi
 
+import android.annotation.SuppressLint
 import android.graphics.Color
 import android.net.wifi.ScanResult
 import androidx.appcompat.app.AppCompatActivity
@@ -9,16 +10,16 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.zzy.common.bean.WiFiAppointBean
-import com.zzy.common.bean.WifiBean
-import com.zzy.common.bean.WifiTag
+import com.zzy.common.bean.*
 import com.zzy.common.net.HttpUtil
 import com.zzy.common.sensor.WifiHandler
 import com.zzy.common.util.*
 import kotlinx.android.synthetic.main.activity_rssi_collect.*
+import kotlin.math.max
 
 class RSSICollectActivity : AppCompatActivity() {
 
@@ -30,6 +31,14 @@ class RSSICollectActivity : AppCompatActivity() {
 
     private val adapter = Adapter()
 
+    //<x-y,levels>
+    private val rssiDataMap: LinkedHashMap<String, List<RSSIData>?> = LinkedHashMap()
+    private val pushBean: RSSITaskBean = RSSITaskBean(6, 3)
+
+    companion object {
+        private const val PUSH_TAG = "push_tag"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_rssi_collect)
@@ -37,18 +46,58 @@ class RSSICollectActivity : AppCompatActivity() {
 
         btnCollect.setOnClickListener {
             if (!it.isSelected) {
-                selected(it, "收集中...")
-                selected(btnLookCur)
-                selected(btnPushCur)
+                if (etTaskName.text.isEmpty()) {
+                    toastShort("任务名不能为空")
+                    return@setOnClickListener
+                }
+                if (!etUnitLength.text.toString().isAllNumberAndNoNull()) {
+                    toastShort("请输入正确的单位长度")
+                    return@setOnClickListener
+                }
+                if (!etX.text.toString().isAllNumberAndNoNull() || !etY.text.toString().isAllNumberAndNoNull()) {
+                    toastShort("请输入正确的坐标")
+                   return@setOnClickListener
+                }
+
+                selectedBtn(it, "收集中...")
+                selectedBtn(btnLookCur)
+                selectedBtn(btnPushCur)
+                pushBean.task_name = etTaskName.text.toString()
+                pushBean.unit_length = etUnitLength.text.toString().toInt()
+                //只能够输入一次
+                if (!etTaskName.isSelected) {
+                    selectedET(etTaskName)
+                    selectedET(etUnitLength)
+                }
+                selectedET(etX)
+                selectedET(etY)
 
                 makeSureHandlerIsRunning()
+                val x = etX.text.toString().toInt()
+                val y = etY.text.toString().toInt()
+                val key = "${x}-${y}"
                 handler.scanOnce({ data ->
-                    unselected(it, "收集一次RSSI")
-                    unselected(btnLookCur)
-                    unselected(btnPushCur)
+                    unselectedBtn(it, "收集一次RSSI")
+                    unselectedBtn(btnLookCur)
+                    unselectedBtn(btnPushCur)
+                    unselectedET(etX)
+                    unselectedET(etY)
 
                     if (checkCanContinue(data)) {
-                        adapter.data = getTargetResult(data)
+                        val lastData = getTargetResult(data)
+                        adapter.data = lastData
+                        val bassidMap = mutableMapOf<String, RSSIData>()
+                        lastData.forEach { list ->
+                            list.forEach { bean ->
+                                if (bassidMap[bean.bassid] == null) {
+                                    bassidMap[bean.bassid] = RSSIData(
+                                            bean.bassid, bean.ssid, x, y, mutableListOf(bean.level))
+                                } else {
+                                    (bassidMap[bean.bassid]!!.levels as MutableList).add(bean.level)
+                                }
+                            }
+                        }
+                        rssiDataMap[key] = bassidMap.values.toList()
                     } else {
                         adapter.data = emptyList()
                     }
@@ -70,8 +119,39 @@ class RSSICollectActivity : AppCompatActivity() {
 
         btnPushCur.setOnClickListener {
             ioSync {
-                HttpUtil.testRequest()
+                val dataList = mutableListOf<RSSIData>()
+                rssiDataMap.forEach {
+                    val list: List<RSSIData> = it.value ?: return@ioSync
+                    dataList.addAll(list)
+                    Log.d(PUSH_TAG, list.joinTo(StringBuilder()).toString())
+                }
+                pushBean.rssi_data = dataList
+                val netResult  = HttpUtil.pushRSSITaskData(pushBean)
+                if (netResult.code == NetResult.SUCCESS_CODE) {
+                    toastShort("上传成功")
+                } else {
+                    toastShort(netResult.msg)
+                }
             }
+        }
+
+        btnLookCur.setOnClickListener { view ->
+            val dataList: MutableList<List<WifiBean>> = mutableListOf()
+            rssiDataMap.forEach { entry ->
+                val data = entry.value
+                if (data.isNullOrEmpty()) {
+                    return@forEach
+                }
+                val x = data[0].x
+                val y = data[0].y
+                val bean = XYBean(x, y)
+                dataList.add(listOf(bean))
+                data.forEach { rssiData ->
+                    dataList.add(listOf(LevelsBean(rssiData.wifi_ssid,
+                            rssiData.wifi_bassid, rssiData.levels.toString())))
+                }
+            }
+            adapter.data = dataList
         }
     }
 
@@ -95,7 +175,7 @@ class RSSICollectActivity : AppCompatActivity() {
         }
     }
 
-    private fun unselected(v: View, str: String = "") {
+    private fun unselectedBtn(v: View, str: String = "") {
         v.isClickable = true
         v.isSelected = false
         if (str.isNotEmpty() && v is TextView) {
@@ -104,13 +184,26 @@ class RSSICollectActivity : AppCompatActivity() {
         v.setBackgroundColor(Color.parseColor("#FF3700B3"))
     }
 
-    private fun selected(v: View, str: String = "") {
+    private fun selectedBtn(v: View, str: String = "") {
         v.isClickable = false
         v.isSelected = true
         v.setBackgroundColor(Color.GRAY)
         if (str.isNotEmpty() && v is TextView) {
             v.text = str
         }
+    }
+
+    private fun selectedET(v: EditText) {
+        v.isSelected = true
+        v.isEnabled = false
+        v.isFocusable = false
+    }
+
+    private fun unselectedET(v: EditText) {
+        v.isSelected = false
+        v.isEnabled = true
+        v.isFocusable = true
+        v.isFocusableInTouchMode = true
     }
 
     private fun checkCanContinue(data: List<List<ScanResult>>): Boolean {
@@ -193,21 +286,40 @@ class RSSICollectActivity : AppCompatActivity() {
 
         override fun getItemCount(): Int = if (data == null) 0 else data!!.size
 
+        @SuppressLint("SetTextI18n")
         override fun onBindViewHolder(holder: Holder, position: Int) {
-            holder.view.text = data!![position].let { list ->
-                var str = ""
-                val maxIndex = list.size - 1
-                list.forEachIndexed { index, result ->
-                    val ssid = if (result.ssid.length > 24) {
-                        result.ssid.substring(0, 24) + "..."
-                    } else result.ssid
-                    val line = if (maxIndex != index) "\n" else ""
-                    str = "${str}level=${result.level}\t\t\t$ssid$line"
+            val beans = data!![position]
+            if (beans.isNullOrEmpty()) {
+                return
+            }
+            val b0 = beans[0]
+            if (b0 is XYBean) {
+                val xyBean = beans[0] as XYBean
+                holder.view.text = "坐标: (${xyBean.x}, ${xyBean.y}) "
+                holder.view.textSize = 17f
+            } else {
+                holder.view.textSize = 14f
+                holder.view.text = beans.let { list ->
+                    var str = ""
+                    val maxSize = if (b0 is LevelsBean) 12 else 24
+                    val levelStr = if (b0 is LevelsBean) b0.levels else "${b0.level}"
+                    val maxIndex = list.size - 1
+                    list.forEachIndexed { index, result ->
+                        val ssid = if (result.ssid.length > maxSize) {
+                            result.ssid.substring(0, maxSize) + "..."
+                        } else result.ssid
+                        val line = if (maxIndex != index) "\n" else ""
+                        str = "${str}level=$levelStr\t\t\t$ssid$line"
+                    }
+                    return@let str
                 }
-                return@let str
             }
         }
     }
 
     class Holder(val view: Button) : RecyclerView.ViewHolder(view)
+
+    class XYBean(val x: Int, val y: Int) : WifiBean("", "", 0)
+
+    class LevelsBean(ssid: String, bassid: String, val levels: String) : WifiBean(ssid, bassid, 0)
 }

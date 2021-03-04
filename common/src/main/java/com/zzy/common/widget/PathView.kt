@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import com.zzy.common.util.DisplayAttrUtil
 import com.zzy.common.util.toastShort
@@ -75,6 +76,13 @@ class PathView : View {
         }
     }
 
+    /**
+     * 矫正轨迹
+     */
+    fun correctLocus() {
+
+    }
+
     fun notifyOption(options: Options) {
         this.options = options
         coordinateAxisPaint.isAntiAlias = true
@@ -101,6 +109,22 @@ class PathView : View {
         scale = DEFAULT_SCALE
         isFirstDraw = true
         notifyOption(options)
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when(event.action) {
+            MotionEvent.ACTION_DOWN -> {
+
+            }
+            MotionEvent.ACTION_CANCEL -> {
+
+            }
+            MotionEvent.ACTION_UP -> {
+
+            }
+        }
+
+        return true
     }
 
     override fun onDraw(canvas: Canvas) {

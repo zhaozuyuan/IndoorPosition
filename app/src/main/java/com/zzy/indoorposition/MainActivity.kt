@@ -20,5 +20,8 @@ class MainActivity : AppCompatActivity() {
         btnSetting.setOnClickListener {
             Router.startSimple(this, PageConstant.Setting.NAME, PageConstant.Setting.SETTING_HOME_PAGE)
         }
+        toCombine.setOnClickListener {
+            Router.startSimple(this, PageConstant.Positing.NAME, PageConstant.Positing.COMBINE_PAGE)
+        }
     }
 }
