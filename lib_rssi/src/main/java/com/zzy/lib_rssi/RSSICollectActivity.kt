@@ -19,7 +19,6 @@ import com.zzy.common.net.HttpUtil
 import com.zzy.common.sensor.WifiHandler
 import com.zzy.common.util.*
 import kotlinx.android.synthetic.main.activity_rssi_collect.*
-import kotlin.math.max
 
 class RSSICollectActivity : AppCompatActivity() {
 
@@ -62,12 +61,12 @@ class RSSICollectActivity : AppCompatActivity() {
                 selectedBtn(it, "收集中...")
                 selectedBtn(btnLookCur)
                 selectedBtn(btnPushCur)
-                pushBean.task_name = etTaskName.text.toString()
-                pushBean.unit_length = etUnitLength.text.toString().toInt()
                 //只能够输入一次
                 if (!etTaskName.isSelected) {
                     selectedET(etTaskName)
                     selectedET(etUnitLength)
+                    pushBean.task_name = etTaskName.text.toString()
+                    pushBean.unit_length = etUnitLength.text.toString().toInt()
                 }
                 selectedET(etX)
                 selectedET(etY)
@@ -86,18 +85,18 @@ class RSSICollectActivity : AppCompatActivity() {
                     if (checkCanContinue(data)) {
                         val lastData = getTargetResult(data)
                         adapter.data = lastData
-                        val bassidMap = mutableMapOf<String, RSSIData>()
+                        val bssidMap = mutableMapOf<String, RSSIData>()
                         lastData.forEach { list ->
                             list.forEach { bean ->
-                                if (bassidMap[bean.bassid] == null) {
-                                    bassidMap[bean.bassid] = RSSIData(
-                                            bean.bassid, bean.ssid, x, y, mutableListOf(bean.level))
+                                if (bssidMap[bean.bssid] == null) {
+                                    bssidMap[bean.bssid] = RSSIData(
+                                            bean.bssid, bean.ssid, x, y, mutableListOf(bean.level))
                                 } else {
-                                    (bassidMap[bean.bassid]!!.levels as MutableList).add(bean.level)
+                                    (bssidMap[bean.bssid]!!.levels as MutableList).add(bean.level)
                                 }
                             }
                         }
-                        rssiDataMap[key] = bassidMap.values.toList()
+                        rssiDataMap[key] = bssidMap.values.toList()
                     } else {
                         adapter.data = emptyList()
                     }
@@ -118,7 +117,12 @@ class RSSICollectActivity : AppCompatActivity() {
         rvCur.adapter = adapter
 
         btnPushCur.setOnClickListener {
+            if (rssiDataMap.isEmpty()) {
+                toastShort("扫描次数为0!")
+                return@setOnClickListener
+            }
             ioSync {
+                pushBean.wifi_tags = targetWifiList
                 val dataList = mutableListOf<RSSIData>()
                 rssiDataMap.forEach {
                     val list: List<RSSIData> = it.value ?: return@ioSync
@@ -148,7 +152,7 @@ class RSSICollectActivity : AppCompatActivity() {
                 dataList.add(listOf(bean))
                 data.forEach { rssiData ->
                     dataList.add(listOf(LevelsBean(rssiData.wifi_ssid,
-                            rssiData.wifi_bassid, rssiData.levels.toString())))
+                            rssiData.wifi_bssid, rssiData.levels.toString())))
                 }
             }
             adapter.data = dataList
@@ -250,7 +254,7 @@ class RSSICollectActivity : AppCompatActivity() {
             if (onceList.size != targetWifiList.size) {
                 val copyTargetWifiList = targetWifiList.toMutableList()
                 onceList.forEach {
-                    val tag = WifiTag(it.ssid, it.bassid)
+                    val tag = WifiTag(it.ssid, it.bssid)
                     if (copyTargetWifiList.contains(tag)) {
                         copyTargetWifiList.remove(tag)
                     }
@@ -302,9 +306,13 @@ class RSSICollectActivity : AppCompatActivity() {
                 holder.view.text = beans.let { list ->
                     var str = ""
                     val maxSize = if (b0 is LevelsBean) 12 else 24
-                    val levelStr = if (b0 is LevelsBean) b0.levels else "${b0.level}"
                     val maxIndex = list.size - 1
                     list.forEachIndexed { index, result ->
+                        val levelStr = if (b0 is LevelsBean) {
+                            (beans[index] as LevelsBean).levels
+                        } else {
+                            "${beans[index].level}"
+                        }
                         val ssid = if (result.ssid.length > maxSize) {
                             result.ssid.substring(0, maxSize) + "..."
                         } else result.ssid
@@ -321,5 +329,5 @@ class RSSICollectActivity : AppCompatActivity() {
 
     class XYBean(val x: Int, val y: Int) : WifiBean("", "", 0)
 
-    class LevelsBean(ssid: String, bassid: String, val levels: String) : WifiBean(ssid, bassid, 0)
+    class LevelsBean(ssid: String, bssid: String, val levels: String) : WifiBean(ssid, bssid, 0)
 }

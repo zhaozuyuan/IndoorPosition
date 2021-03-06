@@ -8,5 +8,7 @@ class CombineActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_combine)
         supportActionBar?.hide()
+
+        PullTaskDialog().show(supportFragmentManager, "tag")
     }
 }

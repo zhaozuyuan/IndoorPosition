@@ -7,7 +7,7 @@ import android.net.wifi.ScanResult
  *
  * 处理业务逻辑时的中间转换bean
  */
-open class WifiBean(val ssid: String, val bassid: String, val level: Int) {
+open class WifiBean(val ssid: String, val bssid: String, val level: Int) {
 
     companion object {
         fun toWifiBean(result: ScanResult): WifiBean = WifiBean(result.SSID ?: "", result.BSSID, result.level)

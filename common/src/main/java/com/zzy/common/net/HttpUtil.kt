@@ -64,13 +64,13 @@ object HttpUtil {
         }
     }
 
-    fun getAllTaskData(): NetResult<List<RSSIData>> {
+    fun getAllTaskData(): NetResult<List<RSSITaskBean>> {
         val request = Request.Builder()
             .url("$BASE_URL${Path.GET_ALL_TASK}")
             .build()
         return try {
-            val resultType: Type = object : TypeToken<NetResult<RSSIData>>(){}.type
-            jsonHelper.fromJson<NetResult<List<RSSIData>>>(
+            val resultType: Type = object : TypeToken<NetResult<List<RSSITaskBean>>>(){}.type
+            jsonHelper.fromJson<NetResult<List<RSSITaskBean>>>(
                 okClient.newCall(request).execute().body?.string(),
                 resultType
             )

@@ -20,11 +20,12 @@ import java.io.Serializable
         "scan_count":6,
         "wifi_count":3,
         "unit_length":100,
+        "wifi_tags":[{"ssid":"xxx","bssid:"xxx"}]
         "rssi_data":
         [
             {
             "wifi_ssid":"wifi1",
-            "wifi_bassid":"xx:xx:xx",
+            "wifi_bssid":"xx:xx:xx",
             "x":1,
             "y":1,
             "levels":[-100,-1]
@@ -37,15 +38,14 @@ data class RSSITaskBean(
     var scan_count: Int,
     var wifi_count: Int,
     var unit_length: Int,
-    var rssi_data: List<RSSIData>,
+    var wifi_tags: List<WifiTag> = emptyList(),
+    var rssi_data: List<RSSIData> = emptyList(),
 ) : Serializable {
-    constructor(scan_count: Int, wifi_count: Int): this("", scan_count, wifi_count, 0, emptyList()) {
-
-    }
+    constructor(scan_count: Int, wifi_count: Int) : this("", scan_count, wifi_count,0)
 }
 
 data class RSSIData(
-    var wifi_bassid: String,
+    var wifi_bssid: String,
     var wifi_ssid: String,
     var x: Int,
     var y: Int,

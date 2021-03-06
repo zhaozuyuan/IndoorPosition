@@ -7,5 +7,6 @@ data class NetResult<T> (val code: Int, val msg: String, val data: T? = null) {
 
     companion object {
         const val SUCCESS_CODE = 200
+        const val NET_ERROR = 500
     }
 }

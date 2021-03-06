@@ -14,5 +14,3 @@ data class WiFiAppointBean(val wifi_list: List<WifiTag>) : Serializable {
         const val SP_KEY = "wifi_appoint_list"
     }
 }
-
-data class WifiTag(val ssid: String, val bssid: String) : Serializable
