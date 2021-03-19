@@ -23,5 +23,8 @@ class MainActivity : AppCompatActivity() {
         toCombine.setOnClickListener {
             Router.startSimple(this, PageConstant.Positing.NAME, PageConstant.Positing.COMBINE_PAGE)
         }
+        toWifiPosition.setOnClickListener {
+            Router.startSimple(this, PageConstant.Positing.NAME, PageConstant.Positing.WIFI_PAGE)
+        }
     }
 }

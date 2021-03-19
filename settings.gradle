@@ -1,7 +1,7 @@
 include ':lib_setting'
 include ':common'
 include ':lib_combine'
-include ':lib_rssi'
+include ':lib_wifi'
 include ':lib_pdr'
 include ':app'
 rootProject.name = "IndoorPosition"

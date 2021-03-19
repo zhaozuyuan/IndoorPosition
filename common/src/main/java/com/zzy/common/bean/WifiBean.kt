@@ -12,4 +12,8 @@ open class WifiBean(val ssid: String, val bssid: String, val level: Int) {
     companion object {
         fun toWifiBean(result: ScanResult): WifiBean = WifiBean(result.SSID ?: "", result.BSSID, result.level)
     }
+
+    override fun toString(): String {
+        return "(ssid:$ssid,level:$level)"
+    }
 }

@@ -144,7 +144,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="整数"
-                android:inputType="number"
+                android:inputType="numberSigned"
                 android:layout_marginStart="8dp"
                 android:textSize="13sp" />
 
@@ -170,7 +170,7 @@
                 android:layout_height="wrap_content"
                 android:hint="整数"
                 android:layout_marginStart="8dp"
-                android:inputType="number"
+                android:inputType="numberSigned"
                 android:textSize="13sp" />
 
         </LinearLayout>

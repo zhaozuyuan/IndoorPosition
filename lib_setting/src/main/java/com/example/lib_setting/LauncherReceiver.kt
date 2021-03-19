@@ -15,5 +15,7 @@ class LauncherReceiver : BroadcastReceiver() {
                 PageConstant.Setting.SETTING_HOME_PAGE, SettingActivity::class.java)
         PageContainer.putPageClazz(PageConstant.Setting.NAME,
             PageConstant.Setting.WIFI_APPOINT_PAGE, WiFiAppointActivity::class.java)
+        PageContainer.putPageClazz(PageConstant.Setting.NAME,
+            PageConstant.Setting.PDR_DIRECTION_PAGE, PDRDirectionActivity::class.java)
     }
 }

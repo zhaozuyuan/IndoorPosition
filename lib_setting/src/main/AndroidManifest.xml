@@ -3,7 +3,8 @@
     package="com.example.lib_setting">
 
     <application>
-        <activity android:name=".WiFiAppointActivity"></activity>
+        <activity android:name=".PDRDirectionActivity"></activity>
+        <activity android:name=".WiFiAppointActivity" />
         <activity android:name=".SettingActivity" />
 
         <receiver

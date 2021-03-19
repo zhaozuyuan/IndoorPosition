@@ -47,6 +47,6 @@ dependencies {
     implementation project(":common")
     implementation project(":lib_combine")
     implementation project(":lib_pdr")
-    implementation project(":lib_rssi")
+    implementation project(':lib_wifi')
     implementation project(":lib_setting")
 }

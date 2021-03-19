@@ -13,6 +13,7 @@ import com.zzy.common.bean.WifiTag
 import com.zzy.common.sensor.WifiHandler
 import com.zzy.common.util.*
 import kotlinx.android.synthetic.main.activity_wifi_appoint.*
+import java.lang.RuntimeException
 
 class WiFiAppointActivity : AppCompatActivity() {
 
@@ -26,8 +27,10 @@ class WiFiAppointActivity : AppCompatActivity() {
 
     private val wifiScanAdapter = Adapter { adapter, tag ->
         wifiAppointAdapter.changeList {
-            if (it.size < 3 && !it.contains(tag)) {
+            if (!it.contains(tag)) {
                 it.add(tag)
+            } else {
+                toastShort("已添加")
             }
         }
     }
@@ -52,7 +55,7 @@ class WiFiAppointActivity : AppCompatActivity() {
         })
 
         cpuSync {
-            val bean = SPUtil.readJsonObj(WiFiAppointBean.SP_KEY, WiFiAppointBean::class.java)
+            val bean = SPUtil.readJsonObj(SPKeys.APPOINT_WIFI_KEY, WiFiAppointBean::class.java)
             bean?.wifi_list?.apply {
                 runOnUiThread {
                     wifiAppointAdapter.data = this.toMutableList()
@@ -61,10 +64,11 @@ class WiFiAppointActivity : AppCompatActivity() {
         }
 
         btnSave.setOnClickListener {
-            if (wifiAppointAdapter.data?.size != 3) {
-                toastShort("应该指定3个WiFi")
+            val size = wifiAppointAdapter.data?.size
+            if (size != null && size < 3) {
+                toastShort("需指定大于2个WiFi")
             } else {
-                SPUtil.putJsonString(WiFiAppointBean.SP_KEY, WiFiAppointBean(wifiAppointAdapter.data!!))
+                SPUtil.putJsonString(SPKeys.APPOINT_WIFI_KEY, WiFiAppointBean(wifiAppointAdapter.data!!))
                 toastShort("保存成功!")
             }
         }

@@ -32,7 +32,7 @@ class RSSICollectActivity : AppCompatActivity() {
 
     //<x-y,levels>
     private val rssiDataMap: LinkedHashMap<String, List<RSSIData>?> = LinkedHashMap()
-    private val pushBean: RSSITaskBean = RSSITaskBean(6, 3)
+    private val pushBean: RSSITaskBean = RSSITaskBean(6, -1)
 
     companion object {
         private const val PUSH_TAG = "push_tag"
@@ -43,8 +43,17 @@ class RSSICollectActivity : AppCompatActivity() {
         setContentView(R.layout.activity_rssi_collect)
         supportActionBar?.hide()
 
+        val bean = SPUtil.readJsonObj(SPKeys.APPOINT_WIFI_KEY, WiFiAppointBean::class.java)
+        if (bean != null && bean.wifi_list.isNotEmpty()) {
+            targetWifiList.addAll(bean.wifi_list)
+        }
+
         btnCollect.setOnClickListener {
             if (!it.isSelected) {
+                if (targetWifiList.isEmpty()) {
+                    toastShort("请在设置中指定WiFi")
+                    return@setOnClickListener
+                }
                 if (etTaskName.text.isEmpty()) {
                     toastShort("任务名不能为空")
                     return@setOnClickListener
@@ -74,7 +83,7 @@ class RSSICollectActivity : AppCompatActivity() {
                 makeSureHandlerIsRunning()
                 val x = etX.text.toString().toInt()
                 val y = etY.text.toString().toInt()
-                val key = "${x}-${y}"
+                val key = "${x}*${y}"
                 handler.scanOnce({ data ->
                     unselectedBtn(it, "收集一次RSSI")
                     unselectedBtn(btnLookCur)
@@ -83,7 +92,7 @@ class RSSICollectActivity : AppCompatActivity() {
                     unselectedET(etY)
 
                     if (checkCanContinue(data)) {
-                        val lastData = getTargetResult(data)
+                        val lastData = WifiRSSIUtil.parseScanResult(targetWifiList, data)
                         adapter.data = lastData
                         val bssidMap = mutableMapOf<String, RSSIData>()
                         lastData.forEach { list ->
@@ -104,7 +113,7 @@ class RSSICollectActivity : AppCompatActivity() {
                     //进度展示
                     if (data.size != adapter.data?.size) {
                         if (checkCanContinue(data)) {
-                            adapter.data = getTargetResult(data)
+                            adapter.data = WifiRSSIUtil.parseScanResult(targetWifiList, data)
                         } else {
                             adapter.data = emptyList()
                         }
@@ -123,6 +132,7 @@ class RSSICollectActivity : AppCompatActivity() {
             }
             ioSync {
                 pushBean.wifi_tags = targetWifiList
+                pushBean.wifi_count = targetWifiList.size
                 val dataList = mutableListOf<RSSIData>()
                 rssiDataMap.forEach {
                     val list: List<RSSIData> = it.value ?: return@ioSync
@@ -215,57 +225,7 @@ class RSSICollectActivity : AppCompatActivity() {
             toastShort("收集失败")
             return false
         }
-        if (targetWifiList.isEmpty()) {
-            val bean = SPUtil.readJsonObj(WiFiAppointBean.SP_KEY, WiFiAppointBean::class.java)
-            if (bean?.wifi_list?.size == 3) {
-                targetWifiList.addAll(bean.wifi_list)
-            } else {
-                if (data.isNotEmpty() && data[0].size < 3) {
-                    toastShort("WiFi数量小于3，不能工作!!!")
-                    return false
-                } else {
-                    //默认是前三个WiFi
-                    data[0][0].also {
-                        targetWifiList.add(WifiTag(it.SSID, it.BSSID))
-                    }
-                    data[0][1].also {
-                        targetWifiList.add(WifiTag(it.SSID, it.BSSID))
-                    }
-                    data[0][2].also {
-                        targetWifiList.add(WifiTag(it.SSID, it.BSSID))
-                    }
-                }
-            }
-        }
         return true
-    }
-
-    private fun getTargetResult(data: List<List<ScanResult>>): List<List<WifiBean>>{
-        val targetResult: MutableList<List<WifiBean>> = mutableListOf()
-        data.forEach { list ->
-            val onceList = list.filter { result ->
-                targetWifiList.contains(WifiTag(result.SSID, result.BSSID))
-            }.sortedBy { result ->
-                //根据名字简单排个序
-                result.SSID
-            }.map { WifiBean.toWifiBean(it)
-            }.toMutableList()
-            //有的wifi没扫描到
-            if (onceList.size != targetWifiList.size) {
-                val copyTargetWifiList = targetWifiList.toMutableList()
-                onceList.forEach {
-                    val tag = WifiTag(it.ssid, it.bssid)
-                    if (copyTargetWifiList.contains(tag)) {
-                        copyTargetWifiList.remove(tag)
-                    }
-                }
-                copyTargetWifiList.forEach {
-                    onceList.add(WifiBean(it.ssid, it.bssid, -999))
-                }
-            }
-            targetResult.add(onceList)
-        }
-        return targetResult
     }
 
     class Adapter : RecyclerView.Adapter<Holder>() {

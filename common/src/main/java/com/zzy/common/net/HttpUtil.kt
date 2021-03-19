@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.lang.reflect.Type
+import java.util.concurrent.TimeUnit
 
 /**
  * create by zuyuan on 2021/2/26
@@ -28,7 +29,13 @@ object HttpUtil {
     }
 
     private val okClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        OkHttpClient.Builder().addInterceptor(HttpLoggingInterceptor()).build()
+        OkHttpClient.Builder()
+            .connectTimeout(10000L, TimeUnit.MILLISECONDS)
+            .callTimeout(3000L, TimeUnit.MILLISECONDS)
+            .readTimeout(5000L, TimeUnit.MILLISECONDS)
+            .writeTimeout(5000L, TimeUnit.MILLISECONDS)
+            .addNetworkInterceptor(HttpLoggingInterceptor())
+            .build()
     }
 
     private val jsonHelper = Gson()
@@ -48,13 +55,13 @@ object HttpUtil {
         }
     }
 
-    fun getRSSITaskData(taskName: String): NetResult<RSSIData> {
+    fun getRSSITaskData(taskName: String): NetResult<RSSITaskBean> {
         val request = Request.Builder()
                 .url("$BASE_URL${Path.GET_RSSI_DATA}?${Params.PARAM_TASK_NAME}=$taskName")
                 .build()
         return try {
-            val resultType: Type = object : TypeToken<NetResult<RSSIData>>(){}.type
-            jsonHelper.fromJson<NetResult<RSSIData>>(
+            val resultType: Type = object : TypeToken<NetResult<RSSITaskBean>>(){}.type
+            jsonHelper.fromJson<NetResult<RSSITaskBean>>(
                     okClient.newCall(request).execute().body?.string(),
                     resultType
             )

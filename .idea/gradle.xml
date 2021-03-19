@@ -14,8 +14,8 @@
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/lib_combine" />
             <option value="$PROJECT_DIR$/lib_pdr" />
-            <option value="$PROJECT_DIR$/lib_rssi" />
             <option value="$PROJECT_DIR$/lib_setting" />
+            <option value="$PROJECT_DIR$/lib_wifi" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />

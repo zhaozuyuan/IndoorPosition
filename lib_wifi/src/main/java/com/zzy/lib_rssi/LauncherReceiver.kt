@@ -13,5 +13,7 @@ class LauncherReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         PageContainer.putPageClazz(Router.assembleUrl(PageConstant.Wifi.NAME, PageConstant.Wifi
                 .WIFI_RSSI_PAGE), RSSICollectActivity::class.java)
+        PageContainer.putPageClazz(Router.assembleUrl(PageConstant.Positing.NAME, PageConstant.Positing
+            .WIFI_PAGE), WiFiPositionActivity::class.java)
     }
 }

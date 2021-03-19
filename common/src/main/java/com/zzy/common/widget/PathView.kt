@@ -9,12 +9,15 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import com.zzy.common.sensor.RotationSensorHandler
 import com.zzy.common.util.DisplayAttrUtil
 import com.zzy.common.util.toastShort
 import kotlin.math.*
 
 /**
  * 绘制步行轨迹的View
+ * 1. addStep 支持前进一步
+ * 2. toRSSIXY 支持一个自定义xy坐标的增加
  */
 class PathView : View {
 
@@ -38,6 +41,7 @@ class PathView : View {
         private const val TAG = "PathView"
 
         private const val DEFAULT_SCALE = 1.0f
+        //备注的margin
         private val DESC_MARGIN = DisplayAttrUtil.getDensity() * 7f
         private val DESC_SIZE = DisplayAttrUtil.getDensity() * 7f
     }
@@ -49,38 +53,63 @@ class PathView : View {
         notifyOption(options)
     }
 
+    fun getCurXY(): Pair<Float, Float> {
+        if (xyPoints.isNotEmpty()) {
+            return xyPoints.last()
+        } else {
+            return Pair(0f, 0f)
+        }
+    }
+
     /**
-     * @param angle 角度 0 -> 3.14 -> -3.14 -> 0
+     * 预坐标
      */
-    fun addStep(angle: Float) {
-        val offsetX = cos(angle.toDouble()).toFloat() * options.stepLength
-        val offsetY = sin(angle.toDouble()).toFloat() * options.stepLength
+    fun nextStepXY(angle: Float): Pair<Float, Float> {
+        val realAngle = 360f - (angle - options.pdrInitDirection)
+        val offsetX = cos(realAngle / 360f * (2f * Math.PI.toFloat())) * options.stepDisplayLength
+        //屏幕的y轴是反的
+        val offsetY = -sin(realAngle / 360f * (2f * Math.PI.toFloat())) * options.stepDisplayLength
         val xy = xyPoints.last()
         val x = xy.first + offsetX
         val y = xy.second + offsetY
-        Log.d(TAG, "angle=$angle, ox=$offsetX, oy=$offsetY")
-        pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
-        linePath.lineTo(x, y)
-        xyPoints.add(Pair(x, y))
+        return Pair(x, y)
+    }
 
-        //暂时按照0.5 0.5 的标准来
-        val middleWidth = measuredWidth.toFloat() * options.lineInitX
-        val middleHeight = measuredHeight.toFloat() * options.lineInitY
-        val edgeDistanceX = (x - middleWidth).absoluteValue * scale
-        val edgeDistanceY = (y - middleHeight).absoluteValue * scale
-        if (scale > 0.3f && (edgeDistanceX >= middleWidth || edgeDistanceY >= middleHeight)) {
-            Log.d(TAG, "x=$x, y=$y, ex=$edgeDistanceX, ey=$edgeDistanceY")
-            changeScale(((scale - 0.1f) * 10).roundToInt() / 10f)
-        } else {
+    /**
+     * 预坐标
+     */
+    fun getRSSIXY(toX: Float, toY: Float): Pair<Float, Float>  {
+        //转换成屏幕距离
+        val scale = options.unitLengthRSSI / options.stepLength * options.stepDisplayLength
+        val displayX = (toX - options.initRSSIX) * scale + measuredWidth / 2f
+        //y轴是反的
+        val displayY = measuredHeight / 2f - (toY - options.initRSSIY) * scale
+        return Pair(displayX, displayY)
+    }
+
+    /**
+     * @param angle 角度 0 -> 1 -> -1 -> 0
+     */
+    fun addStep(angle: Float) {
+        val xy = nextStepXY(angle)
+        Log.d(TAG, "angle=$angle, ox=${xy.first}, oy=${xy.second}")
+        addNewPoint(xy.first, xy.second)
+
+        if (!autoScale(xy.first, xy.second)) {
             invalidate()
         }
     }
 
     /**
-     * 矫正轨迹
+     * 到一个rssi坐标
      */
-    fun correctLocus() {
+    fun toRSSIXY(toX: Float, toY: Float) {
+        val xy = getRSSIXY(toX, toY)
+        addNewPoint(xy.first, xy.second)
 
+        if (!autoScale(xy.first, xy.second)) {
+            invalidate()
+        }
     }
 
     fun notifyOption(options: Options) {
@@ -137,7 +166,10 @@ class PathView : View {
         }
 
         canvas.drawPath(linePath, linePaint)
+        pointPaint.color = options.pointColor
         canvas.drawPath(pointPath, pointPaint)
+        pointPaint.color = Color.RED
+        canvas.drawCircle(xyPoints.last().first, xyPoints.last().second, options.pointRadius, pointPaint)
     }
 
     private fun checkFirst() {
@@ -156,7 +188,23 @@ class PathView : View {
         canvas.drawLine(measuredWidth / 2f, measuredHeight.toFloat(), measuredWidth / 2f, 0f, coordinateAxisPaint)
         canvas.drawLine(0f, measuredHeight / 2f, measuredWidth.toFloat(), measuredHeight / 2f, coordinateAxisPaint)
         canvas.drawText(options.stepString, DESC_MARGIN, measuredHeight - DESC_MARGIN * 2, textPaint)
-        canvas.drawLine(20f, measuredHeight - DESC_MARGIN, DESC_MARGIN + options.onceLength * scale, measuredHeight - DESC_MARGIN, linePaint)
+        canvas.drawLine(DESC_MARGIN, measuredHeight - DESC_MARGIN, DESC_MARGIN + options.stepDisplayLength * scale, measuredHeight - DESC_MARGIN, linePaint)
+    }
+
+    private fun autoScale(x: Float, y: Float): Boolean {
+        //暂时按照0.5 0.5 的标准来
+        val middleWidth = measuredWidth.toFloat() * options.lineInitX
+        val middleHeight = measuredHeight.toFloat() * options.lineInitY
+        val edgeDistanceX = (x - middleWidth).absoluteValue * scale
+        val edgeDistanceY = (y - middleHeight).absoluteValue * scale
+
+        return if (scale > 0.3f && (edgeDistanceX >= middleWidth || edgeDistanceY >= middleHeight)) {
+            Log.d(TAG, "x=$x, y=$y, ex=$edgeDistanceX, ey=$edgeDistanceY")
+            changeScale(((scale - 0.1f) * 10).roundToInt() / 10f)
+            true
+        } else {
+            false
+        }
     }
 
     private fun changeScale(scale: Float) {
@@ -165,26 +213,44 @@ class PathView : View {
         toastShort("比例变为 $scale")
     }
 
+    private fun addNewPoint(x: Float, y: Float) {
+        pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
+        linePath.lineTo(x, y)
+        xyPoints.add(Pair(x, y))
+    }
+
     class Options {
 
-        //步长
-        var stepLength = DisplayAttrUtil.getDensity() * 18f
-        var stepString = "65cm"
+        //真实步长 cm
+        var stepLength = 50f
+        var stepString = "50f"
 
         //路径参数
         var lineColor = Color.BLUE
         var lineWidth = DisplayAttrUtil.getDensity() * 2f
+        //初始位置的百分比
         var lineInitX = 0.5f
         var lineInitY = 0.5f
+        //点参数
         var pointRadius = DisplayAttrUtil.getDensity() * 3f
-        var pointColor = Color.RED
+        var pointColor = Color.BLACK
+        //pdr 初始角度 -3.14~3.14
+        var pdrInitDirection = 0.0f
 
-        //平面参数
-        var onceLength = (DisplayAttrUtil.getDensity() * 20f).toInt()
+        //每一步屏幕长度
+        var stepDisplayLength = (DisplayAttrUtil.getDensity() * 20f).toInt()
         var backgroundColor = Color.WHITE
 
         //坐标轴参数
         var coordinateAxisColor = Color.parseColor("#aaaaaa")
         var coordinateAxisWidth = 2f
+
+        //---------------------//
+
+        //RSSI定位初始坐标
+        var initRSSIX = 0f
+        var initRSSIY = 0f
+        //RSSI坐标单位长度 cm
+        var unitLengthRSSI = 0f
     }
 }

@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * create by zuyuan on 2021/2/20
  * 虽然不是传感器, 可以当成传感器来处理
  */
-class WifiHandler(private val activity: FragmentActivity, private val maxScanTimes: Int = 3) : ISensorHandler {
+class WifiHandler(private val activity: FragmentActivity, private val maxScanTimes: Int = 6) : ISensorHandler {
 
     companion object {
         private const val TAG = "WifiHandler"
@@ -94,6 +94,9 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
                     }
                 }
 
+                if (myTag != curTag) {
+                    break
+                }
                 //8.0以上过时,2min4次的限制.
                 if (wifiManager.startScan()) {
                     Log.d(TAG, "startScan=true")
@@ -137,6 +140,9 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
 
     override fun stopListen() {
         curTag = -1L
+        synchronized(lock) {
+            lock.notifyAll()
+        }
         if (isRegistered.compareAndSet(true, false)) {
             activity.unregisterReceiver(receiver)
         }

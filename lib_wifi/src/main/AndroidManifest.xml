@@ -3,7 +3,8 @@
     package="com.zzy.lib_rssi">
 
     <application>
-        <activity android:name=".RSSICollectActivity"></activity>
+        <activity android:name=".WiFiPositionActivity"></activity>
+        <activity android:name=".RSSICollectActivity" />
 
         <receiver
             android:name=".LauncherReceiver"

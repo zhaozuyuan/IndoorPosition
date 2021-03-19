@@ -2,6 +2,14 @@ package com.zzy.common.util
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.OnLifecycleEvent
+import java.lang.Exception
+import java.lang.ref.WeakReference
 import java.util.concurrent.*
 
 val mainHandler = Handler(Looper.getMainLooper())
@@ -23,7 +31,9 @@ val ioExecutor: ExecutorService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
 val cpuExecutor :ExecutorService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     val count = Runtime.getRuntime().availableProcessors() + 1
     ThreadPoolExecutor(count, count, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue()) { task ->
-        Thread(task).apply {
+        Thread {
+            task.run()
+        }.apply {
             priority = Thread.MAX_PRIORITY
         }
     }
@@ -46,13 +56,13 @@ fun postUIThreadDelay(delay: Long, task: () -> Unit) {
 }
 
 fun singleExecutor(task: () -> Unit) {
-    singleExecutor.submit(task)
+    singleExecutor.execute(task)
 }
 
 fun ioSync(task: () -> Unit) {
-    ioExecutor.submit(task)
+    ioExecutor.execute(task)
 }
 
 fun cpuSync(task: () -> Unit) {
-    cpuExecutor.submit(task)
+    cpuExecutor.execute(task)
 }

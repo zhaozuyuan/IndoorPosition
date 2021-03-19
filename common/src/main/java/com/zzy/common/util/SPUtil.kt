@@ -1,6 +1,7 @@
 package com.zzy.common.util
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.google.gson.Gson
 import java.lang.Exception
 
@@ -17,6 +18,16 @@ object SPUtil {
 
     private val jsonHandler by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         Gson()
+    }
+
+    fun putValues(task : SharedPreferences.Editor.() -> Unit) {
+        val editor = spObj.edit()
+        editor.task()
+        editor.apply()
+    }
+
+    fun getValues(task : SharedPreferences.() -> Unit) {
+        spObj.task()
     }
 
     fun putJsonString(key: String, value: Any) {

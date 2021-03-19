@@ -1,37 +1,41 @@
-package com.zzy.lib_combine
+package com.zzy.common.widget
 
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Bundle
 import android.view.*
 import android.widget.Button
+import android.widget.ProgressBar
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.zzy.common.R
 import com.zzy.common.bean.NetResult
 import com.zzy.common.bean.RSSITaskBean
 import com.zzy.common.net.HttpUtil
-import com.zzy.common.util.ioSync
-import com.zzy.common.util.postUIThreadDelay
-import com.zzy.common.util.runUIThread
-import com.zzy.common.util.toastShort
+import com.zzy.common.util.*
 import kotlinx.android.synthetic.main.dialog_pull_data.*
 
 /**
  * create by zuyuan on 2021/3/4
  */
-class PullTaskDialog : DialogFragment() {
+class PullTaskDialog(private val activity: AppCompatActivity) : DialogFragment() {
 
     private lateinit var rvTasks: RecyclerView
 
     private var data: List<RSSITaskBean> = emptyList()
 
     private val adapter by lazy {
-        Adapter()
+        Adapter(activity)
     }
 
     init {
         isCancelable = false
+    }
+
+    fun setOnItemDataReady(listener: (RSSITaskBean, DialogFragment) -> Unit) {
+        adapter.listener = listener
     }
 
     override fun onCreateView(
@@ -57,10 +61,6 @@ class PullTaskDialog : DialogFragment() {
                 false
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
         ioSync {
             val result: NetResult<List<RSSITaskBean>> = HttpUtil.getAllTaskData()
             if (result.code != NetResult.SUCCESS_CODE) {
@@ -69,7 +69,7 @@ class PullTaskDialog : DialogFragment() {
                     tvNetError.text = result.msg
                 }
             } else {
-                postUIThreadDelay(300L) {
+                postUIThreadDelay(100L) {
                     data = result.data!!
                     adapter.data = data
                     rvTasks.adapter = adapter
@@ -92,7 +92,9 @@ class PullTaskDialog : DialogFragment() {
 
     class Holder(val view: Button) : RecyclerView.ViewHolder(view)
 
-    class Adapter : RecyclerView.Adapter<Holder>() {
+    class Adapter(val activity: AppCompatActivity) : RecyclerView.Adapter<Holder>() {
+
+        var listener: (RSSITaskBean, DialogFragment) -> Unit = {_, _ -> }
 
         var data: List<RSSITaskBean> = emptyList()
             set(value) {
@@ -118,6 +120,48 @@ class PullTaskDialog : DialogFragment() {
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val taskBean = data[position]
             holder.view.text = "任务名称:\n${taskBean.task_name}\n需要的WiFi:\n${taskBean.wifi_tags.map { it.ssid }.toList()}"
+
+            holder.view.setOnClickListener {
+                ReadyDataDialog(taskBean.task_name, this).show(
+                    activity.supportFragmentManager, "ReadyDataDialog")
+            }
+        }
+    }
+
+    class ReadyDataDialog(private val taskName: String, private val adapter: Adapter): DialogFragment() {
+
+        init {
+            isCancelable = false
+        }
+
+        override fun onCreateView(
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
+        ): View {
+            val bar = ProgressBar(context)
+            val width = (DisplayAttrUtil.getDensity() * 60f).toInt()
+            val padding = (DisplayAttrUtil.getDensity() * 15f).toInt()
+            bar.layoutParams = ViewGroup.LayoutParams(width, width)
+            bar.setPadding(padding, padding, padding, padding)
+            return bar
+        }
+
+        override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+            super.onViewCreated(view, savedInstanceState)
+            ioSync {
+                val result = HttpUtil.getRSSITaskData(taskName)
+                if (result.code != NetResult.SUCCESS_CODE || result.data == null) {
+                    runUIThread {
+                        toastShort(result.msg)
+                        dismiss()
+                    }
+                } else {
+                    postUIThreadDelay(100L) {
+                        adapter.listener.invoke(result.data, this)
+                    }
+                }
+            }
         }
     }
 }

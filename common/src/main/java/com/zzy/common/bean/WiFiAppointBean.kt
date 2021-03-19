@@ -8,9 +8,4 @@ import java.io.Serializable
  * 记录本地指定的几个wifi
  */
 
-data class WiFiAppointBean(val wifi_list: List<WifiTag>) : Serializable {
-
-    companion object {
-        const val SP_KEY = "wifi_appoint_list"
-    }
-}
+data class WiFiAppointBean(val wifi_list: List<WifiTag>) : Serializable

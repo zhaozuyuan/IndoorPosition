@@ -14,5 +14,9 @@ class SettingActivity : AppCompatActivity() {
         btnWiFiList.setOnClickListener {
             Router.startSimple(this, PageConstant.Setting.NAME, PageConstant.Setting.WIFI_APPOINT_PAGE)
         }
+
+        btnPDRDirection.setOnClickListener {
+            Router.startSimple(this, PageConstant.Setting.NAME, PageConstant.Setting.PDR_DIRECTION_PAGE)
+        }
     }
 }
