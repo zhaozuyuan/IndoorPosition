@@ -7,12 +7,11 @@ import android.content.IntentFilter
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.Message
 import android.os.SystemClock
 import android.util.Log
 import androidx.fragment.app.FragmentActivity
-import com.zzy.common.util.PermissionHelper
-import com.zzy.common.util.ioSync
-import com.zzy.common.util.postUIThread
+import com.zzy.common.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -23,6 +22,10 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
 
     companion object {
         private const val TAG = "WifiHandler"
+
+        private const val DEFAULT_TAG = -1L
+
+        private val HANDLER_WHAT = hashCode()
     }
 
     private val isRegistered = AtomicBoolean(false)
@@ -31,7 +34,7 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
     private var curScanResultsList: MutableList<List<ScanResult>> = mutableListOf()
 
     @Volatile
-    private var curTag = 0L
+    private var curTag = DEFAULT_TAG
     //结果callback
     @Volatile
     private var curCallback: ((List<List<ScanResult>>) -> Unit)? = null
@@ -45,6 +48,8 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
 
     private val lock: Object = Object()
 
+    private val myHandler = mainHandler
+
     private val receiver = object : BroadcastReceiver() {
 
         override fun onReceive(p0: Context?, intent: Intent) {
@@ -54,14 +59,10 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
                 true
             }
             if (!success) {
-                Log.e(TAG, "EXTRA_RESULTS_UPDATED = false.")
+                Log.e(TAG, "EXTRA_RESULTS_UPDATED = false. (数据未刷新)")
                 scanFailure()
             } else {
                 scanSuccess()
-            }
-            //防止线程堵死
-            synchronized(lock) {
-                lock.notifyAll()
             }
         }
     }
@@ -72,40 +73,61 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
                  progress: (List<List<ScanResult>>) -> Unit = { }) {
         if (!isRegistered.get()) return
 
-        curTag = System.currentTimeMillis()
         curCallback = callback
         curProgressCallback = progress
-        val myTag: Long = curTag
+        curScanSuccessCount = 0
+        curScanResultsList = mutableListOf()
+        val myTag: Long = System.currentTimeMillis()
+        curTag = myTag
         ioSync {
             var preCount = 0
             while (myTag == curTag) {
-                if (curScanSuccessCount == maxScanTimes) {
+                if (curScanSuccessCount >= maxScanTimes) {
                     val copyList = curScanResultsList
-                    postUIThread {
+                    postUIThread(activity.lifecycle) {
                         curCallback!!.invoke(copyList)
                     }
-                    curScanSuccessCount = 0
-                    curScanResultsList = mutableListOf()
+                    curTag = DEFAULT_TAG
                     break
                 } else if (preCount != curScanSuccessCount) {
                     preCount = curScanSuccessCount
-                    postUIThread {
+                    postUIThread(activity.lifecycle) {
                         curProgressCallback!!.invoke(curScanResultsList)
                     }
                 }
 
-                if (myTag != curTag) {
-                    break
-                }
                 //8.0以上过时,2min4次的限制.
                 if (wifiManager.startScan()) {
                     Log.d(TAG, "startScan=true")
+                    //防止出现意外一直休眠
+                    val msg = Message.obtain(myHandler) {
+                        synchronized(lock) {
+                            if (isRegistered.get()) {
+                                lock.notifyAll()
+                            }
+                        }
+                    }
+                    msg.what = HANDLER_WHAT
+                    myHandler.sendMessageDelayed(msg, 10000L)
+
+                    //等待结果
                     synchronized(lock) {
                         lock.wait()
                     }
+                    if (myTag != curTag) {
+                        break
+                    }
+
+                    //清除队列里面的消息
+                    myHandler.removeMessages(HANDLER_WHAT)
+
+                    //成功一次，休眠100ms，防止瞬时查询到同样的结果
+                    if (preCount + 1 == curScanSuccessCount) {
+                        SystemClock.sleep(50L)
+                    }
                 } else {
                     Log.d(TAG, "startScan=false")
-                    SystemClock.sleep(200)
+                    SystemClock.sleep(50L)
                 }
             }
         }
@@ -139,7 +161,9 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
     }
 
     override fun stopListen() {
-        curTag = -1L
+        myHandler.removeMessages(HANDLER_WHAT)
+
+        curTag = DEFAULT_TAG
         synchronized(lock) {
             lock.notifyAll()
         }
@@ -156,6 +180,11 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
             Log.d(TAG, results.joinToString { "${it.SSID} ${it.BSSID} ${it.level}" })
         } else {
             Log.e(TAG, "scan result is null or empty.")
+        }
+
+        //防止线程堵死
+        synchronized(lock) {
+            lock.notifyAll()
         }
     }
 

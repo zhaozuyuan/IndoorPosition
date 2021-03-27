@@ -29,7 +29,7 @@ class PDRDirectionActivity : AppCompatActivity() {
 
         rotationHandler.setCallback {
             curAngle = it[0]
-            val rotationView = 360 - curAngle.roundToInt()
+            val rotationView = curAngle.roundToInt()
             ivArrow.rotation = rotationView.toFloat()
             tvDirection.text = "${rotationView}°"
         }

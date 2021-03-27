@@ -72,7 +72,6 @@ class WiFiAppointActivity : AppCompatActivity() {
                 toastShort("保存成功!")
             }
         }
-
     }
 
     override fun onRequestPermissionsResult(

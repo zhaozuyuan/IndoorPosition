@@ -3,13 +3,7 @@ package com.zzy.common.util
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.OnLifecycleEvent
-import java.lang.Exception
-import java.lang.ref.WeakReference
 import java.util.concurrent.*
 
 val mainHandler = Handler(Looper.getMainLooper())
@@ -39,20 +33,26 @@ val cpuExecutor :ExecutorService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     }
 }
 
-fun runUIThread(task: () -> Unit) {
+fun runUIThread(lifecycle: Lifecycle? = null, task: () -> Unit) {
     if (Looper.myLooper() == mainHandler.looper) {
-        task.invoke()
+        if (lifecycle == null || lifecycle.currentState != Lifecycle.State.DESTROYED) {
+            task.invoke()
+        }
     } else {
-        mainHandler.post(task)
+        postUIThread(lifecycle, task)
     }
 }
 
-fun postUIThread(task: () -> Unit) {
-    mainHandler.post(task)
+fun postUIThread(lifecycle: Lifecycle? = null, task: () -> Unit) {
+    postUIThreadDelay(0, lifecycle, task)
 }
 
-fun postUIThreadDelay(delay: Long, task: () -> Unit) {
-    mainHandler.postDelayed(task, delay)
+fun postUIThreadDelay(delay: Long, lifecycle: Lifecycle? = null, task: () -> Unit) {
+    if (lifecycle == null) {
+        mainHandler.postDelayed(task, delay)
+    } else {
+        mainHandler.postDelayed(LifecycleTask(task, lifecycle), delay)
+    }
 }
 
 fun singleExecutor(task: () -> Unit) {
@@ -65,4 +65,19 @@ fun ioSync(task: () -> Unit) {
 
 fun cpuSync(task: () -> Unit) {
     cpuExecutor.execute(task)
+}
+
+class LifecycleTask(private val task: () -> Unit, private val lifecycle: Lifecycle) : Runnable {
+    
+    override fun run() {
+        when(lifecycle.currentState) {
+            Lifecycle.State.STARTED, Lifecycle.State.RESUMED -> {
+                task.invoke()
+            }
+            else -> {
+                //fragment: onAttach->onCreate->onCreateView->onActivityCreated->onStart->onResume...
+                Log.i("LifecycleTask", "current state=${lifecycle.currentState}, state must be STARTED|RESUMED")
+            }
+        }
+    }
 }

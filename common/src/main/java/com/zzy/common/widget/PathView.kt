@@ -81,9 +81,9 @@ class PathView : View {
     fun getRSSIXY(toX: Float, toY: Float): Pair<Float, Float>  {
         //转换成屏幕距离
         val scale = options.unitLengthRSSI / options.stepLength * options.stepDisplayLength
-        val displayX = (toX - options.initRSSIX) * scale + measuredWidth / 2f
+        val displayX = (toX - options.initRSSIX) * scale + measuredWidth * options.lineInitX
         //y轴是反的
-        val displayY = measuredHeight / 2f - (toY - options.initRSSIY) * scale
+        val displayY = measuredHeight * options.lineInitY - (toY - options.initRSSIY) * scale
         return Pair(displayX, displayY)
     }
 
@@ -185,8 +185,8 @@ class PathView : View {
 
     private fun drawBackground(canvas: Canvas) {
         canvas.drawColor(options.backgroundColor)
-        canvas.drawLine(measuredWidth / 2f, measuredHeight.toFloat(), measuredWidth / 2f, 0f, coordinateAxisPaint)
-        canvas.drawLine(0f, measuredHeight / 2f, measuredWidth.toFloat(), measuredHeight / 2f, coordinateAxisPaint)
+        canvas.drawLine(measuredWidth * options.lineInitX, measuredHeight.toFloat(), measuredWidth * options.lineInitX, 0f, coordinateAxisPaint)
+        canvas.drawLine(0f, measuredHeight * options.lineInitY, measuredWidth.toFloat(), measuredHeight * options.lineInitY, coordinateAxisPaint)
         canvas.drawText(options.stepString, DESC_MARGIN, measuredHeight - DESC_MARGIN * 2, textPaint)
         canvas.drawLine(DESC_MARGIN, measuredHeight - DESC_MARGIN, DESC_MARGIN + options.stepDisplayLength * scale, measuredHeight - DESC_MARGIN, linePaint)
     }
@@ -195,13 +195,21 @@ class PathView : View {
         //暂时按照0.5 0.5 的标准来
         val middleWidth = measuredWidth.toFloat() * options.lineInitX
         val middleHeight = measuredHeight.toFloat() * options.lineInitY
-        val edgeDistanceX = (x - middleWidth).absoluteValue * scale
-        val edgeDistanceY = (y - middleHeight).absoluteValue * scale
+        val edgeDistanceX = (x - middleWidth) * scale
+        val edgeDistanceY = (y - middleHeight) * scale
 
-        return if (scale > 0.3f && (edgeDistanceX >= middleWidth || edgeDistanceY >= middleHeight)) {
-            Log.d(TAG, "x=$x, y=$y, ex=$edgeDistanceX, ey=$edgeDistanceY")
-            changeScale(((scale - 0.1f) * 10).roundToInt() / 10f)
-            true
+        //最小比例
+        return if (scale >= 0.2f) {
+            if ((edgeDistanceX < 0 && edgeDistanceX < -middleWidth)
+                || (edgeDistanceX > 0 && edgeDistanceX > measuredWidth - middleWidth)
+                || (edgeDistanceY < 0 && edgeDistanceY < -middleHeight)
+                || (edgeDistanceY > 0 && edgeDistanceY > measuredHeight - middleHeight)) {
+                Log.d(TAG, "x=$x, y=$y, ex=$edgeDistanceX, ey=$edgeDistanceY")
+                changeScale(((scale - 0.2f) * 10).roundToInt() / 10f)
+                true
+            } else {
+                false
+            }
         } else {
             false
         }
@@ -215,7 +223,8 @@ class PathView : View {
 
     private fun addNewPoint(x: Float, y: Float) {
         pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
-        linePath.lineTo(x, y)
+        //线太多了
+        //linePath.lineTo(x, y)
         xyPoints.add(Pair(x, y))
     }
 
@@ -223,7 +232,7 @@ class PathView : View {
 
         //真实步长 cm
         var stepLength = 50f
-        var stepString = "50f"
+        var stepString = "50cm"
 
         //路径参数
         var lineColor = Color.BLUE
@@ -242,12 +251,12 @@ class PathView : View {
         var backgroundColor = Color.WHITE
 
         //坐标轴参数
-        var coordinateAxisColor = Color.parseColor("#aaaaaa")
-        var coordinateAxisWidth = 2f
+        var coordinateAxisColor = Color.parseColor("#bbbbbb")
+        var coordinateAxisWidth = 1.5f
 
-        //---------------------//
+        //---------后面才引入的RSSI坐标------------//
 
-        //RSSI定位初始坐标
+        //lineInitX,lineInitY 初始点对应的RSSI坐标
         var initRSSIX = 0f
         var initRSSIY = 0f
         //RSSI坐标单位长度 cm

@@ -6,9 +6,9 @@
     <application
         android:name=".App"
         android:allowBackup="true"
-        android:icon="@drawable/ic_app"
+        android:icon="@drawable/ic_app_big"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_app"
+        android:roundIcon="@drawable/ic_app_big"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.IndoorPosition">

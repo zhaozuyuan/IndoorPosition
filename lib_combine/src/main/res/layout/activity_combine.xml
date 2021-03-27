@@ -69,8 +69,8 @@
         android:textSize="14sp"
         android:textColor="#888888"
         android:layout_marginStart="8dp"
-        android:layout_marginTop="12dp"
-        android:layout_alignParentStart="true"
+        android:layout_marginEnd="12dp"
+        android:layout_alignParentEnd="true"
         android:layout_alignParentTop="true"/>
 
 </RelativeLayout>

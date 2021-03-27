@@ -23,7 +23,7 @@ import kotlinx.android.synthetic.main.activity_rssi_collect.*
 class RSSICollectActivity : AppCompatActivity() {
 
     private val handler: WifiHandler by lazy {
-        WifiHandler(this, 6)
+        WifiHandler(this, SCAN_COUNT)
     }
 
     private val targetWifiList: MutableList<WifiTag> = mutableListOf()
@@ -32,10 +32,12 @@ class RSSICollectActivity : AppCompatActivity() {
 
     //<x-y,levels>
     private val rssiDataMap: LinkedHashMap<String, List<RSSIData>?> = LinkedHashMap()
-    private val pushBean: RSSITaskBean = RSSITaskBean(6, -1)
+    private val pushBean: RSSITaskBean = RSSITaskBean(SCAN_COUNT, -1)
 
     companion object {
         private const val PUSH_TAG = "push_tag"
+
+        private const val SCAN_COUNT = 12
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +86,7 @@ class RSSICollectActivity : AppCompatActivity() {
                 val x = etX.text.toString().toInt()
                 val y = etY.text.toString().toInt()
                 val key = "${x}*${y}"
+                val startTime = System.currentTimeMillis()
                 handler.scanOnce({ data ->
                     unselectedBtn(it, "收集一次RSSI")
                     unselectedBtn(btnLookCur)
@@ -94,6 +97,7 @@ class RSSICollectActivity : AppCompatActivity() {
                     if (checkCanContinue(data)) {
                         val lastData = WifiRSSIUtil.parseScanResult(targetWifiList, data)
                         adapter.data = lastData
+
                         val bssidMap = mutableMapOf<String, RSSIData>()
                         lastData.forEach { list ->
                             list.forEach { bean ->
@@ -109,6 +113,7 @@ class RSSICollectActivity : AppCompatActivity() {
                     } else {
                         adapter.data = emptyList()
                     }
+                    toastShort("平均扫描间隔: ${(System.currentTimeMillis() - startTime) / SCAN_COUNT}ms")
                 }, { data ->
                     //进度展示
                     if (data.size != adapter.data?.size) {
