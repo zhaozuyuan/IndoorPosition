@@ -5,6 +5,7 @@ import android.net.wifi.ScanResult
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import com.zzy.common.bean.RSSIPointBean
 import com.zzy.common.bean.RSSITaskBean
 import com.zzy.common.sensor.WifiHandler
@@ -54,8 +55,10 @@ class WiFiPositionActivity : AppCompatActivity() {
 
                         pathView.options.unitLengthRSSI = taskData.unit_length.toFloat()
                         pathView.notifyOption(pathView.options)
-                        pathView.options.lineInitX = 0.1f
-                        pathView.options.lineInitY = 0.9f
+                        pathView.options.lineInitX = 0.05f
+                        pathView.options.lineInitY = 0.95f
+                        pathView.options.initRSSIY = -3.8f
+                        pathView.options.initRSSIX = -1.4f
                         pathView.clear()
                         pathView.notifyOption(pathView.options)
 
@@ -64,11 +67,23 @@ class WiFiPositionActivity : AppCompatActivity() {
                 }
             }
         }
+
+        pathView.setOnClickListenerSafely(View.OnClickListener {
+            if (LogTxtUtil.saveLine("WiFi定位坐标(${curXY.first}, ${curXY.second})")) {
+                toastShort("标记一次")
+            }
+        })
     }
 
     override fun onDestroy() {
         super.onDestroy()
         wifiHandler.stopListen()
+
+        //刷日志
+        if (LogTxtUtil.getTxtLineCount() != 0) {
+            LogTxtUtil.saveLine("<--- 退出WiFi定位页面 --->\n")
+            LogTxtUtil.forceFlush()
+        }
     }
 
     @SuppressLint("SetTextI18n")
@@ -95,17 +110,13 @@ class WiFiPositionActivity : AppCompatActivity() {
             result.forEach {
                 if (it.level == WifiRSSIUtil.INVALID_LEVEL) {
                     runOnUiThread {
-                        tvDesc.text = "当前(${curXY.first}, ${curXY.second})\n未扫描到: ${it.ssid}"
+                        tvDesc.text = "WiFi坐标(${curXY.first}, ${curXY.second})\n未扫描到: ${it.ssid}"
                     }
                     invalidCount++
+                    if (invalidCount >= 2) {
+                        return@cpuSync
+                    }
                 }
-            }
-            if ((isFirstRSSIXY && invalidCount > 0)
-                || (invalidCount > 2 || result.size - invalidCount < 3)) {
-                runOnUiThread {
-                    tvDesc.text = "RSSI信号丢失严重"
-                }
-                return@cpuSync
             }
             Log.d(logTag, "scan=$result")
             var xy = WifiRSSIUtil.getCurrentXY(rssiPointBeans, result)
@@ -119,7 +130,7 @@ class WiFiPositionActivity : AppCompatActivity() {
                 isFirstRSSIXY = false
             }
             Log.d(logTag, "refresh: (${xy.first}, ${xy.second})")
-            runUIThread {
+            runOnUIThread {
                 if (curTag == tag) {
                     pathView.toRSSIXY(xy.first, xy.second)
                     curXY = Pair(xy.first, xy.second)

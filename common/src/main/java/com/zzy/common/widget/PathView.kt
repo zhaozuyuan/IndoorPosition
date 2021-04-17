@@ -1,25 +1,31 @@
 package com.zzy.common.widget
 
+import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
+import android.graphics.*
+import android.hardware.SensorManager
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
 import android.util.AttributeSet
 import android.util.Log
-import android.view.MotionEvent
 import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import com.zzy.common.R
 import com.zzy.common.sensor.RotationSensorHandler
 import com.zzy.common.util.DisplayAttrUtil
 import com.zzy.common.util.toastShort
+import java.util.*
 import kotlin.math.*
 
 /**
  * 绘制步行轨迹的View
+ *
+ * 主要API:
  * 1. addStep 支持前进一步
  * 2. toRSSIXY 支持一个自定义xy坐标的增加
  */
-class PathView : View {
+class PathView : View, Handler.Callback {
 
     var options = Options()
         private set
@@ -34,7 +40,32 @@ class PathView : View {
     private val coordinateAxisPaint = Paint()
 
     private var scale = 1.0f
-    private var xyPoints = mutableListOf<Pair<Float, Float>>()
+    private var xyPoints = LinkedList<Pair<Float, Float>>()
+
+    private var bmp: Bitmap? = null
+
+    private val arrowBmp by lazy {
+        val bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.ic_red_arrow)
+        val scale = 14f * DisplayAttrUtil.getDensity() / bitmap.width
+        val matrix = Matrix()
+        matrix.postScale(scale, scale)
+        Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, false)
+    }
+
+    //箭头指向
+    private var arrowAngle: Float = INVALID_ANGLE
+
+    private val myLooper = Handler(Looper.getMainLooper(),this)
+
+    private val rotationHandler by lazy {
+        arrowAngle = 0f
+        val handler = RotationSensorHandler(context.getSystemService(AppCompatActivity
+                .SENSOR_SERVICE) as SensorManager)
+        handler.setCallback {
+            arrowAngle = it[0] - options.pdrInitDirection
+        }
+        handler
+    }
 
     //常量
     companion object {
@@ -42,8 +73,12 @@ class PathView : View {
 
         private const val DEFAULT_SCALE = 1.0f
         //备注的margin
-        private val DESC_MARGIN = DisplayAttrUtil.getDensity() * 7f
+        private val DESC_MARGIN = DisplayAttrUtil.getDensity() * 3f
         private val DESC_SIZE = DisplayAttrUtil.getDensity() * 7f
+
+        private const val ROTATION_MSG_WHAT = 0x1000
+        private val INVALID_ANGLE = Float.MIN_VALUE
+        private const val ANGLE_REFRESH_DURATION = 200L
     }
 
     constructor(context: Context?) : super(context)
@@ -53,11 +88,11 @@ class PathView : View {
         notifyOption(options)
     }
 
-    fun getCurXY(): Pair<Float, Float> {
-        if (xyPoints.isNotEmpty()) {
-            return xyPoints.last()
+    fun getCurDisplayPoint(): Pair<Float, Float> {
+        return if (xyPoints.isNotEmpty()) {
+            xyPoints.last()
         } else {
-            return Pair(0f, 0f)
+            Pair(0f, 0f)
         }
     }
 
@@ -88,7 +123,7 @@ class PathView : View {
     }
 
     /**
-     * @param angle 角度 0 -> 1 -> -1 -> 0
+     * 增加一步
      */
     fun addStep(angle: Float) {
         val xy = nextStepXY(angle)
@@ -128,58 +163,111 @@ class PathView : View {
         textPaint.color = options.lineColor
         textPaint.isAntiAlias = true
 
+        if (options.openAutoRotate && arrowAngle == INVALID_ANGLE) {
+            rotationHandler.startListen()
+            val refreshMsg = Message.obtain()
+            refreshMsg.what = ROTATION_MSG_WHAT
+            myLooper.sendMessageDelayed(refreshMsg, ANGLE_REFRESH_DURATION)
+        }
+
+        if (options.openDrawBmp) {
+            //TODO 绘制背景图
+            //54=17.2  433=8.6 433_2=10.8
+            val oldBmp = BitmapFactory.decodeResource(context.resources, R.drawable.img_433_qinshi2)
+            val height = 10.8f * options.stepDisplayLength / options.stepLength * options
+                    .unitLengthRSSI
+            val scale = height / oldBmp.height
+            if (scale > 0f) {
+                val matrix = Matrix()
+                //宽了一点
+                matrix.postScale(scale, scale)
+                bmp = Bitmap.createBitmap(oldBmp, 0, 0, oldBmp.width, oldBmp.height, matrix, false)
+            }
+        }
+
+        checkFirst()
         invalidate()
     }
 
     fun clear() {
-        linePath.reset()
         xyPoints.clear()
-        pointPath.reset()
         scale = DEFAULT_SCALE
         isFirstDraw = true
         notifyOption(options)
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        when(event.action) {
-            MotionEvent.ACTION_DOWN -> {
-
-            }
-            MotionEvent.ACTION_CANCEL -> {
-
-            }
-            MotionEvent.ACTION_UP -> {
-
-            }
+    override fun handleMessage(msg: Message): Boolean {
+        if (msg.what == ROTATION_MSG_WHAT) {
+            val refreshMsg = Message.obtain()
+            refreshMsg.what = ROTATION_MSG_WHAT
+            myLooper.sendMessageDelayed(refreshMsg, ANGLE_REFRESH_DURATION)
+            invalidate()
+            return true
         }
-
-        return true
+        return false
     }
 
+    @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas) {
-        checkFirst()
+        //绘制背景
         drawBackground(canvas)
 
+        canvas.save()
+
+        //缩放比例
+        val initX = options.lineInitX * measuredWidth
+        val initY = options.lineInitY * measuredHeight
         if (scale != DEFAULT_SCALE) {
+            canvas.scale(scale, scale, initX, initY)
             canvas.save()
-            canvas.scale(scale, scale, options.lineInitX * measuredWidth, options.lineInitY * measuredHeight)
         }
 
+        //TODO 绘制背景图
+        bmp?.also {
+            //空白补偿
+            val tx = initX// - 5 * DisplayAttrUtil.getDensity()
+            val ty = initY// + 5 * DisplayAttrUtil.getDensity()
+            val rect = RectF(tx, ty - it.height, tx + it.width, ty)
+            canvas.drawBitmap(it, null, rect, null)
+        }
+
+        //绘制轨迹
         canvas.drawPath(linePath, linePaint)
         pointPaint.color = options.pointColor
         canvas.drawPath(pointPath, pointPaint)
         pointPaint.color = Color.RED
-        canvas.drawCircle(xyPoints.last().first, xyPoints.last().second, options.pointRadius, pointPaint)
+
+        //最后来绘制最后一个点
+        if (options.openAutoRotate) {
+            val ix = xyPoints.last().first
+            val iy = xyPoints.last().second
+            val width2 = arrowBmp.width / 2f
+            val rect = RectF(ix - width2, iy - width2, ix + width2, iy + width2)
+            canvas.save()
+            canvas.rotate(arrowAngle + 90, ix, iy)
+            canvas.drawBitmap(arrowBmp, null, rect, null)
+        } else {
+            canvas.drawCircle(xyPoints.last().first, xyPoints.last().second, options.pointRadius, pointPaint)
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        if (arrowAngle != INVALID_ANGLE) {
+            rotationHandler.stopListen()
+        }
+        myLooper.removeMessages(ROTATION_MSG_WHAT)
     }
 
     private fun checkFirst() {
         if (isFirstDraw) {
             isFirstDraw = false
-            val x = measuredWidth * options.lineInitX
-            val y = measuredHeight * options.lineInitY
-            xyPoints.add(Pair(x, y))
-            linePath.moveTo(x, y)
-            pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
+            options.apply {
+                val scale = stepDisplayLength / stepLength
+                val x = measuredWidth * lineInitX - initRSSIX * unitLengthRSSI * scale
+                val y = measuredHeight * lineInitY + initRSSIY * unitLengthRSSI * scale
+                xyPoints.add(Pair(x, y))
+            }
         }
     }
 
@@ -222,10 +310,28 @@ class PathView : View {
     }
 
     private fun addNewPoint(x: Float, y: Float) {
-        pointPath.addCircle(x, y, options.pointRadius, Path.Direction.CW)
         //线太多了
         //linePath.lineTo(x, y)
-        xyPoints.add(Pair(x, y))
+
+        while (xyPoints.size != 0 && xyPoints.size >= options.pointCount) {
+            xyPoints.pop()
+        }
+        xyPoints.offer(Pair(x, y))
+
+        linePath = Path()
+        pointPath = Path()
+        xyPoints.forEachIndexed { index, pair ->
+            if (index == 0) {
+                linePath.moveTo(pair.first, pair.second)
+                pointPath.addCircle(pair.first, pair.second, options.pointRadius, Path.Direction.CW)
+            } else {
+                linePath.lineTo(pair.first, pair.second)
+                if (index != xyPoints.lastIndex){
+                    //最后一个点需要单独绘制
+                    pointPath.addCircle(pair.first, pair.second, options.pointRadius, Path.Direction.CW)
+                }
+            }
+        }
     }
 
     class Options {
@@ -236,18 +342,19 @@ class PathView : View {
 
         //路径参数
         var lineColor = Color.BLUE
-        var lineWidth = DisplayAttrUtil.getDensity() * 2f
+        var lineWidth = DisplayAttrUtil.getDensity() * 1.2f
         //初始位置的百分比
         var lineInitX = 0.5f
         var lineInitY = 0.5f
         //点参数
-        var pointRadius = DisplayAttrUtil.getDensity() * 3f
+        var pointRadius = DisplayAttrUtil.getDensity() * 1.5f
         var pointColor = Color.BLACK
-        //pdr 初始角度 -3.14~3.14
+        //pdr 初始角度
         var pdrInitDirection = 0.0f
 
-        //每一步屏幕长度
-        var stepDisplayLength = (DisplayAttrUtil.getDensity() * 20f).toInt()
+        //每一步屏幕长度 5教/4 寝室/2 控制屏幕的比例
+        val stepDisplayLength
+            get() = (DisplayAttrUtil.getDensity() * stepLength / 2.45f).roundToInt()
         var backgroundColor = Color.WHITE
 
         //坐标轴参数
@@ -256,10 +363,19 @@ class PathView : View {
 
         //---------后面才引入的RSSI坐标------------//
 
-        //lineInitX,lineInitY 初始点对应的RSSI坐标
+        //lineInitX,lineInitY 初始点对应的RSSI坐标，实际上这就是原点坐标
         var initRSSIX = 0f
         var initRSSIY = 0f
         //RSSI坐标单位长度 cm
-        var unitLengthRSSI = 0f
+        var unitLengthRSSI = 100f
+
+        //最后一个点自动旋转
+        var openAutoRotate = true
+
+        //绘制背景图
+        var openDrawBmp = true
+
+        //点的个数
+        var pointCount = 100
     }
 }

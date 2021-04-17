@@ -43,13 +43,13 @@ class StepComputeHandler(private val manager: SensorManager)
         private const val TAG = "stepHandler_tag"
 
         //最小触发的波峰
-        private const val MIN_CREST = 9.8
+        private const val MIN_CREST = 9.75
         //最小触发的波峰和波谷差
-        private const val MIN_CREST_TROUGH_DIFF = 2.0
+        private const val MIN_CREST_TROUGH_DIFF = 1.8
         //最小触发趋势增加次数
         private const val MIN_TREND_UP_COUNT = 10
         //两步间隔最短的时间
-        private const val MIN_STEP_TIME = 350L
+        private const val MIN_STEP_TIME = 250L
 
         //期望出现的Gravity增量
         private const val EXPECT_INCREMENT = 0.5
@@ -90,6 +90,7 @@ class StepComputeHandler(private val manager: SensorManager)
             preOptimalGravity = gravity
         } else {
             if (checkStepValid(gravity)) {
+                Log.d(TAG, "new step.")
                 onNewStep?.invoke()
             }
         }

@@ -11,4 +11,6 @@ object SPKeys {
     //pdr 初始方向(会被抵消)
     const val PDR_INIT_DIRECTION_KEY = "pdr_init_direction"
 
+    //是否采用knn算法，反之则是邻近矩形法
+    const val ALGORITHM_IS_KNN = "wifi_knn"
 }

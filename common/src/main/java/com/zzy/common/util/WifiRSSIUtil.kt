@@ -6,6 +6,7 @@ import androidx.annotation.WorkerThread
 import com.zzy.common.bean.*
 import java.lang.RuntimeException
 import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -33,7 +34,7 @@ object WifiRSSIUtil {
         //转换数据
         val map = mutableMapOf<String, MutableList<RSSIData>>()
         bean.rssi_data.forEach {
-            val xyName = "${it.x}*${it.y}"
+            val xyName = getXYKey(it.x, it.y)
             if (map[xyName] == null) {
                 map[xyName] = mutableListOf()
             }
@@ -42,23 +43,40 @@ object WifiRSSIUtil {
         }
         val beans = mutableListOf<RSSIPointBean>()
         map.forEach { entry ->
+            //一个entri代表一个xy上的点
             val oneBean = entry.value[0]
-            val rssiPointBean =
-                    RSSIPointBean(oneBean.x, oneBean.y)
+            val rssiPointBean = RSSIPointBean(oneBean.x, oneBean.y)
             entry.value.forEach { data ->
+                //一个data代表一个WiFi下的几组数据
                 var level = 0
                 var count = 0
+                var max = INVALID_LEVEL
+                var min = 0
                 data.levels.forEach {
+                    if (it == INVALID_LEVEL) {
+                        return@forEach
+                    }
+                    //去除最大和最小值
+                    var target = it
+                    if (it > max) {
+                        target = max
+                        max = it
+                    } else if (it < min) {
+                        target = min
+                        min = it
+                    }
                     //抛去无效值
-                    if (it != INVALID_LEVEL) {
-                        level += it
+                    if (target != INVALID_LEVEL && target != 0) {
+                        level += target
                         ++count
                     }
                 }
-                if (count == 0) {
-                    return emptyList()
+                //小于三条数据认为不可靠
+                level = if (count < 3) {
+                    INVALID_LEVEL
+                } else {
+                    (level.toFloat() / count).roundToInt()
                 }
-                level = (level.toFloat() / count).roundToInt()
                 val wifiBean = WifiBean(data.wifi_ssid, data.wifi_bssid, level)
                 rssiPointBean.wifiList.add(wifiBean)
             }
@@ -78,7 +96,8 @@ object WifiRSSIUtil {
             }.sortedBy { result ->
                 //根据名字简单排个序
                 result.SSID
-            }.map { WifiBean.toWifiBean(it)
+            }.map {
+                WifiBean.toWifiBean(it)
             }.toMutableList()
             //有的wifi没扫描到
             if (onceList.size != targetWifiList.size) {
@@ -103,8 +122,77 @@ object WifiRSSIUtil {
      */
     @WorkerThread
     fun getCurrentXY(rssiPointBeans: List<RSSIPointBean>, scanResult: List<WifiBean>): Pair<Float, Float> {
-        val startTime = System.currentTimeMillis()
+        var result = Pair(0f, 0f)
+        SPUtil.getValues {
+            result = if (getBoolean(SPKeys.ALGORITHM_IS_KNN, true)) {
+                knn(rssiPointBeans, scanResult)
+            } else {
+                nearbyRect(rssiPointBeans, scanResult)
+            }
+        }
+        return result
+    }
 
+    private fun knn(rssiPointBeans: List<RSSIPointBean>, scanResult: List<WifiBean>): Pair<Float, Float> {
+        val minPointArray = Array<Pair<Int, RSSIPointBean?>>(4) { Pair(Int.MAX_VALUE, null) }
+        rssiPointBeans.forEach { rssiPointBean ->
+            if (scanResult.size != rssiPointBean.wifiList.size) {
+                throw RuntimeException()
+            }
+            var level2 = 0
+            scanResult.forEach { wifiBean ->
+                val findBean = rssiPointBean.findWifiBeanNoNull(wifiBean.bssid)
+                //无效值不计算
+                if (wifiBean.level != INVALID_LEVEL) {
+                    val diffLevel = findBean.level - wifiBean.level
+                    level2 += (diffLevel * diffLevel)
+                } else {
+                    //判断信号弱不弱
+                    if(findBean.level != INVALID_LEVEL) {
+                        level2 += ((-87 - findBean.level) * (-87 - findBean.level))
+                    }
+                }
+            }
+            //按照5个wifi, 每个差值在2，认为在当前点
+            if (level2 < 15) {
+                return Pair(rssiPointBean.x.toFloat(), rssiPointBean.y.toFloat())
+            }
+
+            //插入排序
+            val target = Pair(level2, rssiPointBean)
+            var i =  minPointArray.size - 1
+            while (i >= 0) {
+                val pair = minPointArray[i]
+                if (target.first <= pair.first) {
+                    if (i != minPointArray.size - 1) {
+                        swap(minPointArray, i, i + 1)
+                    }
+                    minPointArray[i] = target
+                }
+                --i
+            }
+        }
+        var allLevel = 0f
+        //level2越大，占比越小
+        minPointArray.forEach {
+            if (it.second != null) {
+                allLevel += (1f / it.first)
+            }
+        }
+        var xNN = 0f
+        var yNN = 0f
+        minPointArray.forEach {
+            if (it.second != null) {
+                val scale = it.first * allLevel
+                xNN += (it.second!!.x / scale)
+                yNN += (it.second!!.y / scale)
+            }
+        }
+        return Pair(xNN.round(2), yNN.round(2))
+
+    }
+
+    private fun nearbyRect(rssiPointBeans: List<RSSIPointBean>, scanResult: List<WifiBean>): Pair<Float, Float> {
         var minPointDiffLevel = Int.MAX_VALUE
         var minLevelBean =  RSSIPointBean(0,0)
         val levelMap = mutableMapOf<String, Int>()
@@ -119,6 +207,17 @@ object WifiRSSIUtil {
                 if (wifiBean.level != INVALID_LEVEL) {
                     val diffLevel = findBean.level - wifiBean.level
                     level2 += (diffLevel * diffLevel)
+                } else {
+                    //判断信号弱不弱
+                    if(findBean.level != INVALID_LEVEL) {
+                        if (findBean.level <= -80) {
+                            //认为差了2
+                            level2 += 4
+                        } else {
+                            //认为差了5
+                            level2 += 25
+                        }
+                    }
                 }
             }
             levelMap[getXYKey(rssiPointBean.x, rssiPointBean.y)] = level2
@@ -130,18 +229,18 @@ object WifiRSSIUtil {
         Log.d(TAG, "min diff = ${minPointDiffLevel}, min xy = $minLevelBean")
 
         //按照5个wifi, 每个差值在3，=45，认为在当前点
-        if (minPointDiffLevel < 45) {
+        if (minPointDiffLevel < 15) {
             return Pair(minLevelBean.x.toFloat(), minLevelBean.y.toFloat())
         }
 
         //找到了rssi diff最小坐标，那么它的周围可以形成四个矩形
         //例如rssi diff最小坐标(0,0)，可形成四个矩形(如下)，真实坐标一定在其中一个矩形以内
         /**
-            (0,0)  (1,0)   (1,1)    (0,1)
-            (0,0)  (-1,0)  (-1,1)   (0,1)
-            (0,0)  (1,0)   (1,-1)   (0,-1)
-            (0,0)  (-1,0)  (-1,-1)  (0,-1)
-        **/
+        (0,0)  (1,0)   (1,1)    (0,1)
+        (0,0)  (-1,0)  (-1,1)   (0,1)
+        (0,0)  (1,0)   (1,-1)   (0,-1)
+        (0,0)  (-1,0)  (-1,-1)  (0,-1)
+         **/
 
         //转map，方便拿出
         val rssiMap = mutableMapOf<String, RSSIPointBean>()
@@ -221,48 +320,41 @@ object WifiRSSIUtil {
         //diff level越小，占比应该越大
         targetRect4.forEach {
             if (it.rssiPointBean != null) {
-                allDiffLevel += it.getSquareRootLevel()
-            }
-        }
-        var allDiffLevelB = 0f
-        targetRect4.forEach {
-            if (it.rssiPointBean != null) {
-                allDiffLevelB += allDiffLevel / it.getSquareRootLevel()
+                allDiffLevel += (1 / it.getSquareRootLevel())
             }
         }
         targetRect4.forEach {
             if (it.rssiPointBean != null) {
-                val scale = allDiffLevel / it.getSquareRootLevel() / allDiffLevelB
-                x += (scale * it.x)
-                y += (scale * it.y)
+                val scale = it.getSquareRootLevel() * allDiffLevel
+                x += (it.x / scale)
+                y += (it.y / scale)
             }
         }
 
         Log.d(TAG, "result: x=$x, y=$y")
-
-        val diffTime = System.currentTimeMillis() - startTime
-        Log.d(TAG, "getCurrentXY() duration = ${diffTime}ms" )
-        return Pair((x * 100).roundToInt() / 100f, (y * 100).roundToInt() / 100f)
+        return Pair(x.round(2), y.round(2))
     }
 
     /**
      * 检查速度是否正常
      */
     fun checkNormalSpeed(x: Float, y: Float, preX: Float, preY: Float, unit: Int, preMillTime: Long): Pair<Float, Float> {
-        val length = sqrt((preY - y) * (preY - y) + (preX - x) * (preX - x)) * unit
-        //多少cm/ms
-        val speed = length / (System.currentTimeMillis() - preMillTime)
-        //20km/h = 0.5556cm/s
-        val maxSpeed = 0.5556f
-        return if (speed > maxSpeed) {
-            //超速了
-            val maxX = preX + (x - preX) * maxSpeed / speed
-            val maxY = preY + (x - preY) * maxSpeed / speed
-            Log.d(TAG, "超速 $speed, max=$maxSpeed")
-            Pair(maxX, maxY)
-        } else {
-            Pair(x, y)
-        }
+//        val length = sqrt((preY - y) * (preY - y) + (preX - x) * (preX - x)) * unit
+//        //多少cm/ms
+//        val speed = length / (System.currentTimeMillis() - preMillTime)
+//        //10km/h = 0.278/s, 500cm/2s=0.25
+//        val maxSpeed = 0.01f
+//        return if (speed > maxSpeed) {
+//            //超速了
+//            val maxX = preX + (x - preX) * maxSpeed / speed
+//            val maxY = preY + (x - preY) * maxSpeed / speed
+//            Log.d(TAG, "超速 $speed, max=$maxSpeed")
+//            Pair(maxX.round(2), maxY.round(2))
+//        } else {
+//            Log.d(TAG, "speed=$speed")
+//            Pair(x, y)
+//        }
+        return Pair(x, y)
     }
 
     /**
@@ -305,6 +397,12 @@ object WifiRSSIUtil {
             target += max
         }
         return Pair(validCount, target)
+    }
+
+    private fun <T> swap(array: Array<T>, i1: Int, i2: Int) {
+        val a = array[i1]
+        array[i1] = array[i2]
+        array[i2] = a
     }
 
     class RectPointBean(val x: Int, val y: Int, val rssiPointBean: RSSIPointBean?, var level2: Int = 0) {

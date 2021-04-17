@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * create by zuyuan on 2021/2/20
  * 虽然不是传感器, 可以当成传感器来处理
  */
-class WifiHandler(private val activity: FragmentActivity, private val maxScanTimes: Int = 6) : ISensorHandler {
+class WifiHandler(private val activity: FragmentActivity,
+                  private val maxScanTimes: Int = 6,
+                  private val sleepDurationOnSuccess: Long = 50L) : ISensorHandler {
 
     companion object {
         private const val TAG = "WifiHandler"
@@ -80,18 +82,18 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
         val myTag: Long = System.currentTimeMillis()
         curTag = myTag
         ioSync {
-            var preCount = 0
+            var preSuccessCount = 0
             while (myTag == curTag) {
                 if (curScanSuccessCount >= maxScanTimes) {
                     val copyList = curScanResultsList
-                    postUIThread(activity.lifecycle) {
+                    postToUIThread(lifecycle = activity.lifecycle) {
                         curCallback!!.invoke(copyList)
                     }
                     curTag = DEFAULT_TAG
                     break
-                } else if (preCount != curScanSuccessCount) {
-                    preCount = curScanSuccessCount
-                    postUIThread(activity.lifecycle) {
+                } else if (preSuccessCount != curScanSuccessCount) {
+                    preSuccessCount = curScanSuccessCount
+                    postToUIThread(lifecycle = activity.lifecycle) {
                         curProgressCallback!!.invoke(curScanResultsList)
                     }
                 }
@@ -121,10 +123,10 @@ class WifiHandler(private val activity: FragmentActivity, private val maxScanTim
                     //清除队列里面的消息
                     myHandler.removeMessages(HANDLER_WHAT)
 
-                    //成功一次，休眠100ms，防止瞬时查询到同样的结果
-                    if (preCount + 1 == curScanSuccessCount) {
-                        SystemClock.sleep(50L)
-                    }
+                    //成功一次，休眠指定时间
+//                    if (curScanSuccessCount in preSuccessCount until maxScanTimes) {
+//                        SystemClock.sleep(sleepDurationOnSuccess)
+//                    }
                 } else {
                     Log.d(TAG, "startScan=false")
                     SystemClock.sleep(50L)

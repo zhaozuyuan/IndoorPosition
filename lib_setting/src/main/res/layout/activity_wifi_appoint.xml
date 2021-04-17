@@ -36,6 +36,20 @@
         android:layout_marginTop="12dp"
         android:layout_below="@id/rvWifiAppoint"/>
 
+    <TextView
+        android:id="@+id/tvRefresh"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="点击刷新"
+        android:clickable="true"
+        android:textSize="16sp"
+        android:textColor="#1A379F"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:layout_alignParentEnd="true"
+        android:layout_below="@id/rvWifiAppoint"
+        />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvWifiScan"
         android:layout_width="match_parent"

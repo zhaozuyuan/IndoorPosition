@@ -1,7 +1,6 @@
 package com.zzy.common.widget
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
 import android.view.*
@@ -65,13 +64,13 @@ class PullTaskDialog(private val activity: AppCompatActivity) : DialogFragment()
         ioSync {
             val result: NetResult<List<RSSITaskBean>> = HttpUtil.getAllTaskData()
             if (result.code != NetResult.SUCCESS_CODE) {
-                runUIThread(this.lifecycle) {
+                runOnUIThread(this.lifecycle) {
                     llLoading.visibility = View.GONE
                     tvNetError.text = result.msg
                     tvNetError.visibility = View.VISIBLE
                 }
             } else {
-                postUIThreadDelay(100L, this.lifecycle) {
+                postToUIThread(100L, this.lifecycle) {
                     data = result.data!!
                     adapter.data = data
                     rvTasks.adapter = adapter
@@ -84,7 +83,7 @@ class PullTaskDialog(private val activity: AppCompatActivity) : DialogFragment()
     private fun dismissAndFinish() {
         dialog?.let { dialog ->
             dialog.setOnDismissListener {
-                postUIThreadDelay(50L) {
+                postToUIThread(50L) {
                     dialog.ownerActivity?.finish()
                 }
             }
@@ -154,12 +153,12 @@ class PullTaskDialog(private val activity: AppCompatActivity) : DialogFragment()
             ioSync {
                 val result = HttpUtil.getRSSITaskData(taskName)
                 if (result.code != NetResult.SUCCESS_CODE || result.data == null) {
-                    runUIThread(this.lifecycle) {
+                    runOnUIThread(this.lifecycle) {
                         toastShort(result.msg)
                         dismiss()
                     }
                 } else {
-                    postUIThreadDelay(100L, this.lifecycle) {
+                    postToUIThread(100L, this.lifecycle) {
                         adapter.listener.invoke(result.data, this)
                     }
                 }

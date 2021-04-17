@@ -20,10 +20,16 @@ object SPUtil {
         Gson()
     }
 
-    fun putValues(task : SharedPreferences.Editor.() -> Unit) {
+    fun applyValues(task : SharedPreferences.Editor.() -> Unit) {
         val editor = spObj.edit()
         editor.task()
         editor.apply()
+    }
+
+    fun commitValues(task : SharedPreferences.Editor.() -> Unit) {
+        val editor = spObj.edit()
+        editor.task()
+        editor.commit()
     }
 
     fun getValues(task : SharedPreferences.() -> Unit) {

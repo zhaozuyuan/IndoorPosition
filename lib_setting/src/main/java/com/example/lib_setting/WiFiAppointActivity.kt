@@ -1,6 +1,7 @@
 package com.example.lib_setting
 
 import android.graphics.Color
+import android.net.wifi.ScanResult
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -46,13 +47,20 @@ class WiFiAppointActivity : AppCompatActivity() {
         rvWifiScan.adapter = wifiScanAdapter
         rvWifiScan.layoutManager = LinearLayoutManager(this)
 
-        wifiHandler.startListen()
-        wifiHandler.scanOnce ({ list ->
+        var onceOver = false
+        val callback: (List<List<ScanResult>>) -> Unit = { list ->
             wifiScanAdapter.data = list[0]
-                .filter { !it.SSID.isNullOrEmpty() }
-                .map { WifiTag(it.SSID, it.BSSID) }
-                .toMutableList()
-        })
+                    .filter { !it.SSID.isNullOrEmpty() }
+                    .map {
+                        val hz = if (it.frequency in 4900..5900) "5" else "2.4"
+                        WifiTag("${it.SSID}-$hz", it.BSSID)
+                    }
+                    .toMutableList()
+            onceOver = true
+        }
+
+        wifiHandler.startListen()
+        wifiHandler.scanOnce(callback)
 
         cpuSync {
             val bean = SPUtil.readJsonObj(SPKeys.APPOINT_WIFI_KEY, WiFiAppointBean::class.java)
@@ -70,6 +78,13 @@ class WiFiAppointActivity : AppCompatActivity() {
             } else {
                 SPUtil.putJsonString(SPKeys.APPOINT_WIFI_KEY, WiFiAppointBean(wifiAppointAdapter.data!!))
                 toastShort("保存成功!")
+            }
+        }
+
+        tvRefresh.setOnClickListener {
+            if (onceOver) {
+                onceOver = false
+                wifiHandler.scanOnce(callback)
             }
         }
     }

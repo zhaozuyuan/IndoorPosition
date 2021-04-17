@@ -33,6 +33,28 @@
             android:padding="2dp"
             android:textSize="16sp" />
 
+        <Button
+            android:id="@+id/btnWifiAlgorithm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="24dp"
+            android:text="确定PDR初始方向"
+            android:padding="2dp"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btnOpenLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="24dp"
+            android:text="打开日志文本输出"
+            android:padding="2dp"
+            android:textSize="16sp" />
+
     </LinearLayout>
 
 </ScrollView>

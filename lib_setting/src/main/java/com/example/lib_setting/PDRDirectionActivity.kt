@@ -10,7 +10,6 @@ import com.zzy.common.util.SPKeys
 import com.zzy.common.util.SPUtil
 import com.zzy.common.util.toastShort
 import kotlinx.android.synthetic.main.activity_pdr_direction.*
-import kotlin.math.asin
 import kotlin.math.roundToInt
 
 class PDRDirectionActivity : AppCompatActivity() {
@@ -37,7 +36,7 @@ class PDRDirectionActivity : AppCompatActivity() {
         rotationHandler.startListen()
 
         btnOK.setOnClickListener {
-            SPUtil.putValues {
+            SPUtil.applyValues {
                 putFloat(SPKeys.PDR_INIT_DIRECTION_KEY, curAngle)
                 toastShort("保存成功")
             }

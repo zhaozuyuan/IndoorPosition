@@ -12,6 +12,8 @@ object Global {
 
     private var curActivity: AppCompatActivity? = null
 
+    const val APP_DIR_NAME = "IndoorPosition"
+
     fun init(app: Application) {
         this.app = app
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
